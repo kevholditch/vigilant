@@ -1,6 +1,14 @@
 package models
 
-import "time"
+import (
+	"context"
+	"fmt"
+	"time"
+
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+)
 
 // Pod represents a Kubernetes pod
 type Pod struct {
@@ -14,89 +22,41 @@ type Pod struct {
 	Node      string
 }
 
-// GetSamplePods returns hardcoded sample pod data
-func GetSamplePods() []Pod {
-	return []Pod{
-		{
-			Name:      "nginx-deployment-7d4c8b5c9",
-			Namespace: "default",
-			Status:    "Running",
-			Ready:     "1/1",
-			Restarts:  0,
-			Age:       2 * time.Hour,
-			IP:        "10.244.0.15",
-			Node:      "worker-1",
-		},
-		{
-			Name:      "redis-master-0",
-			Namespace: "default",
-			Status:    "Running",
-			Ready:     "1/1",
-			Restarts:  2,
-			Age:       1 * time.Hour,
-			IP:        "10.244.0.16",
-			Node:      "worker-2",
-		},
-		{
-			Name:      "postgres-0",
-			Namespace: "database",
-			Status:    "Running",
-			Ready:     "1/1",
-			Restarts:  0,
-			Age:       5 * time.Hour,
-			IP:        "10.244.0.17",
-			Node:      "worker-1",
-		},
-		{
-			Name:      "api-server-7d4c8b5c9",
-			Namespace: "default",
-			Status:    "Pending",
-			Ready:     "0/1",
-			Restarts:  0,
-			Age:       30 * time.Minute,
-			IP:        "",
-			Node:      "",
-		},
-		{
-			Name:      "cron-job-123456",
-			Namespace: "default",
-			Status:    "Succeeded",
-			Ready:     "0/1",
-			Restarts:  0,
-			Age:       10 * time.Minute,
-			IP:        "10.244.0.18",
-			Node:      "worker-3",
-		},
-		{
-			Name:      "webhook-handler",
-			Namespace: "default",
-			Status:    "Failed",
-			Ready:     "0/1",
-			Restarts:  3,
-			Age:       45 * time.Minute,
-			IP:        "10.244.0.19",
-			Node:      "worker-1",
-		},
-		{
-			Name:      "monitoring-grafana",
-			Namespace: "monitoring",
-			Status:    "Running",
-			Ready:     "1/1",
-			Restarts:  1,
-			Age:       3 * time.Hour,
-			IP:        "10.244.0.20",
-			Node:      "worker-2",
-		},
-		{
-			Name:      "monitoring-prometheus",
-			Namespace: "monitoring",
-			Status:    "Running",
-			Ready:     "1/1",
-			Restarts:  0,
-			Age:       3 * time.Hour,
-			IP:        "10.244.0.21",
-			Node:      "worker-3",
-		},
+// GetPods fetches a list of pods from the Kubernetes cluster
+func GetPods(clientset *kubernetes.Clientset) ([]Pod, error) {
+	// Fetch pods from all namespaces
+	podList, err := clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("could not list pods: %w", err)
+	}
+
+	var pods []Pod
+	for _, k8sPod := range podList.Items {
+		pods = append(pods, toPodModel(k8sPod))
+	}
+	return pods, nil
+}
+
+// toPodModel converts a Kubernetes API pod object to our internal Pod model
+func toPodModel(p v1.Pod) Pod {
+	restarts := 0
+	readyContainers := 0
+	for _, cs := range p.Status.ContainerStatuses {
+		restarts += int(cs.RestartCount)
+		if cs.Ready {
+			readyContainers++
+		}
+	}
+
+	return Pod{
+		Name:      p.Name,
+		Namespace: p.Namespace,
+		Status:    string(p.Status.Phase),
+		Ready:     fmt.Sprintf("%d/%d", readyContainers, len(p.Spec.Containers)),
+		Restarts:  restarts,
+		Age:       time.Since(p.CreationTimestamp.Time),
+		IP:        p.Status.PodIP,
+		Node:      p.Spec.NodeName,
 	}
 }
 

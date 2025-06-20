@@ -2,22 +2,55 @@ package app
 
 import (
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/kevholditch/vigilant/internal/models"
 	"github.com/kevholditch/vigilant/internal/views"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 // App represents the main application
 type App struct {
-	podView *views.PodView
-	width   int
-	height  int
+	clientset *kubernetes.Clientset
+	podView   *views.PodView
+	width     int
+	height    int
 }
 
 // NewApp creates a new application instance
 func NewApp() *App {
+	// --- Kubernetes Client Setup ---
+	userHomeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalf("error getting user home dir: %v", err)
+	}
+	kubeConfigPath := filepath.Join(userHomeDir, ".kube", "config")
+
+	config, err := clientcmd.BuildConfigFromFlags("", kubeConfigPath)
+	if err != nil {
+		log.Fatalf("error getting Kubernetes config: %v", err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Fatalf("error creating Kubernetes client: %v", err)
+	}
+	// --- End Kubernetes Client Setup ---
+
+	pods, err := models.GetPods(clientset)
+	if err != nil {
+		log.Fatalf("error getting pods: %v", err)
+	}
+
+	podView := views.NewPodView(pods)
+
 	return &App{
-		podView: views.NewPodView(),
+		clientset: clientset,
+		podView:   podView,
 	}
 }
 

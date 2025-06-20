@@ -2,9 +2,9 @@ package views
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 	"github.com/kevholditch/vigilant/internal/models"
 	"github.com/kevholditch/vigilant/internal/theme"
 )
@@ -18,9 +18,9 @@ type PodView struct {
 }
 
 // NewPodView creates a new pod view
-func NewPodView() *PodView {
+func NewPodView(pods []models.Pod) *PodView {
 	return &PodView{
-		pods:     models.GetSamplePods(),
+		pods:     pods,
 		selected: 0,
 	}
 }
@@ -100,85 +100,60 @@ func (pv *PodView) renderTable() string {
 		return lipgloss.NewStyle().Foreground(theme.TextMuted).Render("No pods found")
 	}
 
-	// Table headers
+	// Create table headers
 	headers := []string{"NAME", "NAMESPACE", "STATUS", "READY", "RESTARTS", "AGE", "IP", "NODE"}
-	headerRow := pv.renderTableRow(headers, true, false)
 
-	// Table rows
-	var rows []string
-	for i, pod := range pv.pods {
-		isSelected := i == pv.selected
-		isAlt := i%2 == 1
-		row := pv.renderPodRow(pod, isSelected, isAlt)
+	// Create table rows
+	var rows [][]string
+	for _, pod := range pv.pods {
+		row := []string{
+			pod.Name,
+			pod.Namespace,
+			pod.Status,
+			pod.Ready,
+			fmt.Sprintf("%d", pod.Restarts),
+			pod.FormatAge(),
+			pod.IP,
+			pod.Node,
+		}
 		rows = append(rows, row)
 	}
 
-	// Combine header and rows
-	tableContent := append([]string{headerRow}, rows...)
-	return strings.Join(tableContent, "\n")
-}
+	// Create the table
+	t := table.New().
+		Headers(headers...).
+		Rows(rows...).
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(lipgloss.NewStyle().Foreground(theme.Primary)).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			if row == 0 {
+				// Header row
+				return theme.TableHeaderStyle
+			}
 
-// renderTableRow renders a single table row
-func (pv *PodView) renderTableRow(cells []string, isHeader, isSelected bool) string {
-	var styledCells []string
+			// Data rows
+			isSelected := row-1 == pv.selected
+			isAlt := (row-1)%2 == 1
 
-	for i, cell := range cells {
-		var style lipgloss.Style
+			var style lipgloss.Style
+			if isSelected {
+				style = theme.TableSelectedStyle
+			} else if isAlt {
+				style = theme.TableRowAltStyle
+			} else {
+				style = theme.TableRowStyle
+			}
 
-		if isHeader {
-			style = theme.TableHeaderStyle
-		} else if isSelected {
-			style = theme.TableSelectedStyle
-		} else {
-			style = theme.TableRowStyle
-		}
+			// Apply status styling for status column (col 2)
+			if col == 2 && !isSelected && row-1 >= 0 && row-1 < len(pv.pods) {
+				pod := pv.pods[row-1]
+				style = style.Inherit(theme.GetStatusStyle(pod.Status))
+			}
 
-		// Adjust column widths
-		width := pv.getColumnWidth(i)
-		styledCell := style.Copy().Height(1).Width(width).Render(cell)
-		styledCells = append(styledCells, styledCell)
-	}
+			return style
+		})
 
-	return lipgloss.JoinHorizontal(lipgloss.Left, styledCells...)
-}
-
-// renderPodRow renders a pod row with proper styling
-func (pv *PodView) renderPodRow(pod models.Pod, isSelected, isAlt bool) string {
-	cells := []string{
-		pod.Name,
-		pod.Namespace,
-		pod.Status,
-		pod.Ready,
-		fmt.Sprintf("%d", pod.Restarts),
-		pod.FormatAge(),
-		pod.IP,
-		pod.Node,
-	}
-
-	var styledCells []string
-
-	// Determine base style for the row
-	rowStyle := theme.TableRowStyle
-	if isSelected {
-		rowStyle = theme.TableSelectedStyle
-	} else if isAlt {
-		rowStyle = theme.TableRowAltStyle
-	}
-
-	for i, cell := range cells {
-		style := rowStyle.Copy()
-		width := pv.getColumnWidth(i)
-
-		// Apply special styling for the status column on unselected rows.
-		if i == 2 && !isSelected {
-			style = style.Inherit(theme.GetStatusStyle(pod.Status))
-		}
-
-		styledCell := style.Height(1).Width(width).Render(cell)
-		styledCells = append(styledCells, styledCell)
-	}
-
-	return lipgloss.JoinHorizontal(lipgloss.Left, styledCells...)
+	return t.Render()
 }
 
 // renderStatusBar renders the status bar at the bottom
@@ -194,22 +169,4 @@ func (pv *PodView) renderStatusBar() string {
 	}
 
 	return theme.StatusBarStyle.Width(pv.width).Render(statusText)
-}
-
-// getColumnWidth returns the width for a specific column
-func (pv *PodView) getColumnWidth(colIndex int) int {
-	// Define column widths as percentages of total width
-	widths := []int{25, 12, 10, 8, 8, 8, 15, 12} // percentages
-
-	if colIndex >= len(widths) {
-		return 10
-	}
-
-	// Calculate actual width based on percentage, accounting for border/padding
-	availableWidth := pv.width - 4
-	width := (availableWidth * widths[colIndex]) / 100
-	if width < 3 {
-		width = 3 // minimum width
-	}
-	return width
 }
