@@ -11,19 +11,21 @@ import (
 
 // PodView represents the pod list view
 type PodView struct {
-	pods     []models.Pod
-	selected int
-	width    int
-	height   int
-	theme    *theme.Theme
+	pods        []models.Pod
+	selected    int
+	width       int
+	height      int
+	theme       *theme.Theme
+	clusterName string
 }
 
 // NewPodView creates a new pod view
-func NewPodView(pods []models.Pod, theme *theme.Theme) *PodView {
+func NewPodView(pods []models.Pod, theme *theme.Theme, clusterName string) *PodView {
 	return &PodView{
-		pods:     pods,
-		selected: 0,
-		theme:    theme,
+		pods:        pods,
+		selected:    0,
+		theme:       theme,
+		clusterName: clusterName,
 	}
 }
 
@@ -61,9 +63,6 @@ func (pv *PodView) Render() string {
 		return ""
 	}
 
-	// Header with cluster info
-	header := pv.renderHeader()
-
 	// Pod table
 	table := pv.renderTable()
 
@@ -73,27 +72,11 @@ func (pv *PodView) Render() string {
 	// Combine all components
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
-		header,
 		table,
 		statusBar,
 	)
 
-	// Apply border and padding
-	return pv.theme.BorderStyle.Width(pv.width).Height(pv.height).Render(content)
-}
-
-// renderHeader renders the cluster information header
-func (pv *PodView) renderHeader() string {
-	clusterName := pv.theme.ClusterNameStyle.Render("🚀 production-cluster")
-	clusterVersion := pv.theme.ClusterVersionStyle.Render("v1.28.0")
-
-	headerContent := lipgloss.JoinHorizontal(
-		lipgloss.Left,
-		clusterName,
-		clusterVersion,
-	)
-
-	return pv.theme.HeaderStyle.Width(pv.width).Render(headerContent)
+	return content
 }
 
 // renderTable renders the pod table
@@ -151,6 +134,13 @@ func (pv *PodView) renderTable() string {
 			return style
 		})
 
+	// available height for table is parent height - status bar height - table border - table header
+	tableHeight := pv.height - 1 - 3 // 1 for status bar, 3 for table overhead(border+header)
+	if tableHeight < 0 {
+		tableHeight = 0
+	}
+	t.Height(tableHeight)
+
 	return t.Render()
 }
 
@@ -160,10 +150,10 @@ func (pv *PodView) renderStatusBar() string {
 	var statusText string
 
 	if selectedPod != nil {
-		statusText = fmt.Sprintf("Selected: %s (%s) | Total: %d pods",
+		statusText = fmt.Sprintf("Selected: %s (%s) | Total: %d pods | Press 'd' to describe",
 			selectedPod.Name, selectedPod.Status, len(pv.pods))
 	} else {
-		statusText = fmt.Sprintf("Total: %d pods", len(pv.pods))
+		statusText = fmt.Sprintf("Total: %d pods | Press 'd' to describe", len(pv.pods))
 	}
 
 	return pv.theme.StatusBarStyle.Width(pv.width).Render(statusText)

@@ -11,6 +11,7 @@ type Theme struct {
 	Warning   lipgloss.Color
 	Error     lipgloss.Color
 	Success   lipgloss.Color
+	Purple    lipgloss.Color
 
 	// Background colors
 	BgPrimary   lipgloss.Color
@@ -49,6 +50,7 @@ func NewDefaultTheme() *Theme {
 		Warning:   lipgloss.Color("#ff4400"), // Red-orange
 		Error:     lipgloss.Color("#ff0044"), // Red
 		Success:   lipgloss.Color("#00ff44"), // Green
+		Purple:    lipgloss.Color("#bd93f9"), // A nice purple from the Dracula theme
 
 		// Background colors
 		BgPrimary:   lipgloss.Color("#0a0a0a"), // Dark background
@@ -156,6 +158,7 @@ var (
 	Warning   = lipgloss.Color("#ff4400") // Red-orange
 	Error     = lipgloss.Color("#ff0044") // Red
 	Success   = lipgloss.Color("#00ff44") // Green
+	Purple    = lipgloss.Color("#bd93f9") // A nice purple from the Dracula theme
 
 	// Background colors
 	BgPrimary   = lipgloss.Color("#0a0a0a") // Dark background
