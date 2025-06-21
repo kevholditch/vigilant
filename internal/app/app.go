@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/kevholditch/vigilant/internal/models"
 	"github.com/kevholditch/vigilant/internal/theme"
 	"github.com/kevholditch/vigilant/internal/views"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -34,6 +36,8 @@ type App struct {
 	width             int
 	height            int
 	theme             *theme.Theme
+	controlPlaneNodes int
+	workerNodes       int
 }
 
 // NewApp creates a new application instance
@@ -75,6 +79,31 @@ func NewApp() *App {
 	}
 	// --- End K8s Version ---
 
+	// --- Get Node Counts ---
+	nodeList, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		log.Printf("could not list nodes: %v", err)
+	}
+
+	var controlPlaneNodes, workerNodes int
+	if nodeList != nil {
+		for _, node := range nodeList.Items {
+			isControlPlane := false
+			for label := range node.Labels {
+				if label == "node-role.kubernetes.io/control-plane" || label == "node-role.kubernetes.io/master" {
+					isControlPlane = true
+					break
+				}
+			}
+			if isControlPlane {
+				controlPlaneNodes++
+			} else {
+				workerNodes++
+			}
+		}
+	}
+	// --- End Node Counts ---
+
 	pods, err := models.GetPods(clientset)
 	if err != nil {
 		log.Fatalf("error getting pods: %v", err)
@@ -86,11 +115,13 @@ func NewApp() *App {
 	podView := views.NewPodView(pods, theme, clusterName)
 
 	app := &App{
-		clientset:   clientset,
-		podView:     podView,
-		currentView: PodListView,
-		theme:       theme,
-		clusterName: clusterName,
+		clientset:         clientset,
+		podView:           podView,
+		currentView:       PodListView,
+		theme:             theme,
+		clusterName:       clusterName,
+		controlPlaneNodes: controlPlaneNodes,
+		workerNodes:       workerNodes,
 	}
 
 	if k8sVersion != nil {
@@ -158,7 +189,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
-
 	}
 	return a, nil
 }
@@ -193,42 +223,56 @@ func (a *App) View() string {
 }
 
 func (a *App) renderHeader() string {
-	titleStyle := lipgloss.NewStyle().
-		Background(a.theme.Purple).
+	// --- Styles ---
+	barStyle := lipgloss.NewStyle().
+		Background(a.theme.BgSecondary).
 		Foreground(a.theme.TextPrimary).
-		Padding(0, 1).
-		Bold(true)
+		Padding(0, 1)
 
-	k8sVersionStyle := lipgloss.NewStyle().
-		Inherit(titleStyle).
-		Background(a.theme.Primary).
-		Foreground(a.theme.TextInverse)
+	separator := lipgloss.NewStyle().
+		Foreground(a.theme.TextMuted).
+		SetString(" | ").
+		String()
 
-	var viewTitle string
+	// --- Content ---
+	clusterInfo := fmt.Sprintf("☸️ %s", a.clusterName)
+
+	var viewText string
 	switch a.currentView {
 	case PodListView:
-		viewTitle = "Pods on " + a.clusterName
+		viewText = "🔍 Viewing pods"
 	case DescribePodView:
-		if a.describePodView != nil {
-			selectedPod := a.podView.GetSelected()
-			if selectedPod != nil {
-				viewTitle = "Describe Pod: " + selectedPod.Name
-			}
+		selectedPod := a.podView.GetSelected()
+		if selectedPod != nil {
+			viewText = fmt.Sprintf("🔍 Describing pod %s", selectedPod.Name)
 		} else {
-			viewTitle = "Describe Pod"
+			viewText = "🔍 Describing pod"
 		}
 	}
 
-	title := titleStyle.Render("👁️ Vigilant - " + viewTitle)
-	version := k8sVersionStyle.Render("K8s: " + a.kubernetesVersion)
+	controlPlaneInfo := fmt.Sprintf("🕹️ CP %d", a.controlPlaneNodes)
+	workerInfo := fmt.Sprintf("👷 W %d", a.workerNodes)
+	k8sInfo := fmt.Sprintf("K8s: %s", a.kubernetesVersion)
 
-	// Spacer to push version to the right
-	spacerWidth := a.width - lipgloss.Width(title) - lipgloss.Width(version)
-	if spacerWidth < 0 {
-		spacerWidth = 0
-	}
-	spacer := lipgloss.NewStyle().Width(spacerWidth).Render("")
+	// --- Assembly ---
+	content := lipgloss.JoinHorizontal(
+		lipgloss.Bottom,
+		clusterInfo,
+		separator,
+		viewText,
+		separator,
+		k8sInfo,
+		separator,
+		controlPlaneInfo,
+		separator,
+		workerInfo,
+	)
 
-	headerContent := lipgloss.JoinHorizontal(lipgloss.Top, title, spacer, version)
-	return lipgloss.NewStyle().Width(a.width).Render(headerContent)
+	// --- Layout ---
+	bar := lipgloss.NewStyle().
+		Width(a.width).
+		Align(lipgloss.Center).
+		Render(barStyle.Render(content))
+
+	return bar
 }
