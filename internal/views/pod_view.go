@@ -15,13 +15,15 @@ type PodView struct {
 	selected int
 	width    int
 	height   int
+	theme    *theme.Theme
 }
 
 // NewPodView creates a new pod view
-func NewPodView(pods []models.Pod) *PodView {
+func NewPodView(pods []models.Pod, theme *theme.Theme) *PodView {
 	return &PodView{
 		pods:     pods,
 		selected: 0,
+		theme:    theme,
 	}
 }
 
@@ -77,13 +79,13 @@ func (pv *PodView) Render() string {
 	)
 
 	// Apply border and padding
-	return theme.BorderStyle.Width(pv.width).Height(pv.height).Render(content)
+	return pv.theme.BorderStyle.Width(pv.width).Height(pv.height).Render(content)
 }
 
 // renderHeader renders the cluster information header
 func (pv *PodView) renderHeader() string {
-	clusterName := theme.ClusterNameStyle.Render("🚀 production-cluster")
-	clusterVersion := theme.ClusterVersionStyle.Render("v1.28.0")
+	clusterName := pv.theme.ClusterNameStyle.Render("🚀 production-cluster")
+	clusterVersion := pv.theme.ClusterVersionStyle.Render("v1.28.0")
 
 	headerContent := lipgloss.JoinHorizontal(
 		lipgloss.Left,
@@ -91,13 +93,13 @@ func (pv *PodView) renderHeader() string {
 		clusterVersion,
 	)
 
-	return theme.HeaderStyle.Width(pv.width).Render(headerContent)
+	return pv.theme.HeaderStyle.Width(pv.width).Render(headerContent)
 }
 
 // renderTable renders the pod table
 func (pv *PodView) renderTable() string {
 	if len(pv.pods) == 0 {
-		return lipgloss.NewStyle().Foreground(theme.TextMuted).Render("No pods found")
+		return lipgloss.NewStyle().Foreground(pv.theme.TextMuted).Render("No pods found")
 	}
 
 	// Create table headers
@@ -124,30 +126,26 @@ func (pv *PodView) renderTable() string {
 		Headers(headers...).
 		Rows(rows...).
 		Border(lipgloss.RoundedBorder()).
-		BorderStyle(lipgloss.NewStyle().Foreground(theme.Primary)).
+		BorderStyle(lipgloss.NewStyle().Foreground(pv.theme.Primary)).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			if row == 0 {
-				// Header row
-				return theme.TableHeaderStyle
-			}
 
-			// Data rows
-			isSelected := row-1 == pv.selected
-			isAlt := (row-1)%2 == 1
+			isSelected := row == pv.selected
 
 			var style lipgloss.Style
 			if isSelected {
-				style = theme.TableSelectedStyle
-			} else if isAlt {
-				style = theme.TableRowAltStyle
+				style = pv.theme.TableSelectedStyle
+			} else if (row-1)%2 == 1 {
+				// Alternate row style
+				style = pv.theme.TableRowAltStyle
 			} else {
-				style = theme.TableRowStyle
+				style = pv.theme.TableRowStyle
 			}
 
 			// Apply status styling for status column (col 2)
-			if col == 2 && !isSelected && row-1 >= 0 && row-1 < len(pv.pods) {
-				pod := pv.pods[row-1]
-				style = style.Inherit(theme.GetStatusStyle(pod.Status))
+			podIndex := row - 1
+			if col == 2 && !isSelected && podIndex >= 0 && podIndex < len(pv.pods) {
+				pod := pv.pods[podIndex]
+				style = style.Inherit(pv.theme.GetStatusStyle(pod.Status))
 			}
 
 			return style
@@ -168,5 +166,5 @@ func (pv *PodView) renderStatusBar() string {
 		statusText = fmt.Sprintf("Total: %d pods", len(pv.pods))
 	}
 
-	return theme.StatusBarStyle.Width(pv.width).Render(statusText)
+	return pv.theme.StatusBarStyle.Width(pv.width).Render(statusText)
 }

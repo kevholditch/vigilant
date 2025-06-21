@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/kevholditch/vigilant/internal/models"
+	"github.com/kevholditch/vigilant/internal/theme"
 	"github.com/kevholditch/vigilant/internal/views"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -19,6 +20,7 @@ type App struct {
 	podView   *views.PodView
 	width     int
 	height    int
+	theme     *theme.Theme
 }
 
 // NewApp creates a new application instance
@@ -46,11 +48,15 @@ func NewApp() *App {
 		log.Fatalf("error getting pods: %v", err)
 	}
 
-	podView := views.NewPodView(pods)
+	// Create theme
+	theme := theme.NewDefaultTheme()
+
+	podView := views.NewPodView(pods, theme)
 
 	return &App{
 		clientset: clientset,
 		podView:   podView,
+		theme:     theme,
 	}
 }
 
