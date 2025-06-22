@@ -11,33 +11,16 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kevholditch/vigilant/internal/controllers"
 	"github.com/kevholditch/vigilant/internal/theme"
-	"github.com/kevholditch/vigilant/internal/views"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
-
-// ViewType represents the current view type
-type ViewType int
-
-const (
-	PodListView ViewType = iota
-	DescribePodView
-)
-
-// ViewTransitionMsg represents a message to transition between views
-type ViewTransitionMsg struct {
-	ToView    ViewType
-	PodName   string
-	Namespace string
-}
 
 // App represents the main application
 type App struct {
 	clientset         *kubernetes.Clientset
 	kubernetesVersion string
 	clusterName       string
-	currentView       ViewType
 	width             int
 	height            int
 	theme             *theme.Theme
@@ -121,7 +104,6 @@ func NewApp() *App {
 
 	app := &App{
 		clientset:         clientset,
-		currentView:       PodListView,
 		theme:             theme,
 		clusterName:       clusterName,
 		controlPlaneNodes: controlPlaneNodes,
@@ -132,34 +114,16 @@ func NewApp() *App {
 		app.kubernetesVersion = k8sVersion.String()
 	}
 
-	// Initialize the default controller
+	// Initialize the controller
 	app.initializeControllers()
 
 	return app
 }
 
-// initializeControllers sets up the controllers for different views
+// initializeControllers sets up the controllers
 func (a *App) initializeControllers() {
-	// Set up the default pod list controller
-	a.currentController = controllers.NewPodListController(a.clientset, a.theme, a.clusterName, a.handleDescribePod)
-}
-
-// handleDescribePod handles the transition to describe pod view
-func (a *App) handleDescribePod(podView *views.PodListView) tea.Cmd {
-	return func() tea.Msg {
-		selectedPod := podView.GetSelected()
-		if selectedPod != nil {
-			return ViewTransitionMsg{ToView: DescribePodView, PodName: selectedPod.Name, Namespace: selectedPod.Namespace}
-		}
-		return nil
-	}
-}
-
-// handleBackToList handles the transition back to pod list view
-func (a *App) handleBackToList() tea.Cmd {
-	return func() tea.Msg {
-		return ViewTransitionMsg{ToView: PodListView}
-	}
+	// Set up the pod controller that manages both list and describe views
+	a.currentController = controllers.NewPodController(a.clientset, a.theme, a.clusterName)
 }
 
 // Run starts the application
@@ -196,15 +160,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if a.currentController != nil {
 				return a, a.currentController.HandleKey(msg)
 			}
-		}
-	case ViewTransitionMsg:
-		switch msg.ToView {
-		case DescribePodView:
-			a.currentView = DescribePodView
-			a.currentController = controllers.NewDescribePodController(a.clientset, a.theme, msg.PodName, msg.Namespace, a.handleBackToList)
-		case PodListView:
-			a.currentView = PodListView
-			a.currentController = controllers.NewPodListController(a.clientset, a.theme, a.clusterName, a.handleDescribePod)
 		}
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
@@ -249,7 +204,6 @@ func (a *App) renderHeader() string {
 	clusterInfo := fmt.Sprintf("☸️ %s", a.clusterName)
 
 	viewText := a.currentController.ActionText()
-
 	controlPlaneInfo := fmt.Sprintf("🕹️ CP %d", a.controlPlaneNodes)
 	workerInfo := fmt.Sprintf("👷 W %d", a.workerNodes)
 	k8sInfo := fmt.Sprintf("K8s: %s", a.kubernetesVersion)
