@@ -1,6 +1,10 @@
 # Vigilant
 
-A K9s-like terminal UI application built with Go.
+A hobby project to build a modern terminal UI for Kubernetes using AI-assisted development.
+
+## About
+
+Vigilant is an experimental terminal-based Kubernetes management tool built with Go and Bubble Tea. This project serves as a learning exercise in building intuitive terminal UIs and exploring AI-assisted development workflows.
 
 ## Features
 
@@ -9,6 +13,7 @@ A K9s-like terminal UI application built with Go.
 - Keyboard navigation
 - Pod description view with kubectl integration
 - Simple and clean interface with cyberpunk theme
+- Real-time cluster information display
 
 ## Installation
 
@@ -51,28 +56,17 @@ go build -o vigilant .
 - `Esc` - Return to pod list view
 - `↑/↓` or `j/k` - Scroll through pod description
 
-## Project Structure
-
-```
-vigilant/
-├── internal/              # Private application code
-│   ├── app/              # Main application logic
-│   ├── models/           # Data models
-│   ├── theme/            # UI theme and styling
-│   └── views/            # UI view components
-├── main.go               # Application entry point
-├── go.mod                # Go module file
-└── README.md             # This file
-```
-
 ## Development
 
-This is a K9s-like terminal UI application with the following features:
+This is a hobby project exploring terminal UI development with the following features:
 
 1. **Pod List View**: Displays all pods in the cluster with status, namespace, and other details
 2. **Pod Description View**: Shows detailed pod information using `kubectl describe pod`
 3. **Theme System**: Cyberpunk-themed UI with consistent styling
 4. **Keyboard Navigation**: Full keyboard support for navigation and interaction
+5. **Cluster Information**: Real-time display of cluster name, Kubernetes version, and node counts
+
+### Future Ideas
 
 You can extend it by:
 
@@ -80,6 +74,12 @@ You can extend it by:
 2. Implementing resource management operations
 3. Adding configuration options
 4. Implementing real-time updates
+5. Adding resource filtering and search capabilities
+6. Implementing multi-cluster support
+
+## Contributing
+
+This is a personal hobby project, but feel free to fork and experiment with your own ideas!
 
 ## License
 
