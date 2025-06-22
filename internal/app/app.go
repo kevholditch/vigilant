@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kevholditch/vigilant/internal/controllers"
 	"github.com/kevholditch/vigilant/internal/models"
 	"github.com/kevholditch/vigilant/internal/theme"
 	"github.com/kevholditch/vigilant/internal/views"
@@ -25,6 +26,11 @@ const (
 	DescribePodView
 )
 
+// ViewTransitionMsg represents a message to transition between views
+type ViewTransitionMsg struct {
+	ToView ViewType
+}
+
 // App represents the main application
 type App struct {
 	clientset         *kubernetes.Clientset
@@ -38,6 +44,7 @@ type App struct {
 	theme             *theme.Theme
 	controlPlaneNodes int
 	workerNodes       int
+	currentController controllers.Controller
 }
 
 // NewApp creates a new application instance
@@ -80,28 +87,34 @@ func NewApp() *App {
 	// --- End K8s Version ---
 
 	// --- Get Node Counts ---
-	nodeList, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	// Get control plane nodes using label selector
+	controlPlaneNodesList, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: "node-role.kubernetes.io/control-plane",
+	})
 	if err != nil {
-		log.Printf("could not list nodes: %v", err)
+		log.Printf("could not list control plane nodes: %v", err)
+	}
+	controlPlaneNodes := len(controlPlaneNodesList.Items)
+
+	// If no control plane nodes found with the new label, try the old master label
+	if controlPlaneNodes == 0 {
+		masterNodesList, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+			LabelSelector: "node-role.kubernetes.io/master",
+		})
+		if err != nil {
+			log.Printf("could not list master nodes: %v", err)
+		}
+		controlPlaneNodes = len(masterNodesList.Items)
 	}
 
-	var controlPlaneNodes, workerNodes int
-	if nodeList != nil {
-		for _, node := range nodeList.Items {
-			isControlPlane := false
-			for label := range node.Labels {
-				if label == "node-role.kubernetes.io/control-plane" || label == "node-role.kubernetes.io/master" {
-					isControlPlane = true
-					break
-				}
-			}
-			if isControlPlane {
-				controlPlaneNodes++
-			} else {
-				workerNodes++
-			}
-		}
+	// Get worker nodes using label selector (nodes without control-plane or master labels)
+	workerNodesList, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: "!node-role.kubernetes.io/control-plane,!node-role.kubernetes.io/master",
+	})
+	if err != nil {
+		log.Printf("could not list worker nodes: %v", err)
 	}
+	workerNodes := len(workerNodesList.Items)
 	// --- End Node Counts ---
 
 	pods, err := models.GetPods(clientset)
@@ -127,7 +140,35 @@ func NewApp() *App {
 	if k8sVersion != nil {
 		app.kubernetesVersion = k8sVersion.String()
 	}
+
+	// Initialize the default controller
+	app.initializeControllers()
+
 	return app
+}
+
+// initializeControllers sets up the controllers for different views
+func (a *App) initializeControllers() {
+	// Set up the default pod list controller
+	a.currentController = controllers.NewPodListController(a.podView, a.handleDescribePod)
+}
+
+// handleDescribePod handles the transition to describe pod view
+func (a *App) handleDescribePod(podView *views.PodView) tea.Cmd {
+	return func() tea.Msg {
+		selectedPod := podView.GetSelected()
+		if selectedPod != nil {
+			return ViewTransitionMsg{ToView: DescribePodView}
+		}
+		return nil
+	}
+}
+
+// handleBackToList handles the transition back to pod list view
+func (a *App) handleBackToList() tea.Cmd {
+	return func() tea.Msg {
+		return ViewTransitionMsg{ToView: PodListView}
+	}
 }
 
 // Run starts the application
@@ -159,32 +200,26 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return a, tea.Quit
-		case "up", "k":
-			if a.currentView == PodListView {
-				a.podView.SelectPrev()
-			} else if a.currentView == DescribePodView && a.describePodView != nil {
-				a.describePodView.ScrollUp()
+		default:
+			// Delegate to the current controller
+			if a.currentController != nil {
+				return a, a.currentController.HandleKey(msg)
 			}
-		case "down", "j":
-			if a.currentView == PodListView {
-				a.podView.SelectNext()
-			} else if a.currentView == DescribePodView && a.describePodView != nil {
-				a.describePodView.ScrollDown()
+		}
+	case ViewTransitionMsg:
+		switch msg.ToView {
+		case DescribePodView:
+			selectedPod := a.podView.GetSelected()
+			if selectedPod != nil {
+				a.describePodView = views.NewDescribePodView(selectedPod, a.theme)
+				a.describePodView.SetSize(a.width, a.height)
+				a.currentView = DescribePodView
+				a.currentController = controllers.NewDescribePodController(a.describePodView, a.handleBackToList)
 			}
-		case "d":
-			if a.currentView == PodListView {
-				selectedPod := a.podView.GetSelected()
-				if selectedPod != nil {
-					a.describePodView = views.NewDescribePodView(selectedPod, a.theme)
-					a.describePodView.SetSize(a.width, a.height)
-					a.currentView = DescribePodView
-				}
-			}
-		case "esc":
-			if a.currentView == DescribePodView {
-				a.currentView = PodListView
-				a.describePodView = nil
-			}
+		case PodListView:
+			a.currentView = PodListView
+			a.describePodView = nil
+			a.currentController = controllers.NewPodListController(a.podView, a.handleDescribePod)
 		}
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
