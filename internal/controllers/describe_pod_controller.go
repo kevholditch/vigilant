@@ -1,21 +1,50 @@
 package controllers
 
 import (
+	"log"
+
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/kevholditch/vigilant/internal/models"
+	"github.com/kevholditch/vigilant/internal/theme"
 	"github.com/kevholditch/vigilant/internal/views"
+	"k8s.io/client-go/kubernetes"
 )
 
 // DescribePodController handles input for the describe pod view
 type DescribePodController struct {
 	describePodView *views.DescribePodView
 	onBack          func() tea.Cmd
+	clientset       *kubernetes.Clientset
+	theme           *theme.Theme
+	podName         string
+	namespace       string
+	width           int
+	height          int
 }
 
 // NewDescribePodController creates a new describe pod controller
-func NewDescribePodController(describePodView *views.DescribePodView, onBack func() tea.Cmd) *DescribePodController {
+func NewDescribePodController(clientset *kubernetes.Clientset, theme *theme.Theme, podName, namespace string, onBack func() tea.Cmd) *DescribePodController {
+	// Fetch pod details
+	pod, err := models.GetPod(clientset, namespace, podName)
+	if err != nil {
+		log.Printf("error getting pod details: %v", err)
+		// Create a placeholder pod for error case
+		pod = &models.Pod{
+			Name:      podName,
+			Namespace: namespace,
+			Status:    "Error",
+		}
+	}
+
+	describePodView := views.NewDescribePodView(pod, theme)
+
 	return &DescribePodController{
 		describePodView: describePodView,
 		onBack:          onBack,
+		clientset:       clientset,
+		theme:           theme,
+		podName:         podName,
+		namespace:       namespace,
 	}
 }
 
@@ -30,12 +59,33 @@ func (c *DescribePodController) HandleKey(msg tea.KeyMsg) tea.Cmd {
 		return nil
 	case "esc":
 		return c.onBack()
+	case "r":
+		// Refresh pod details
+		return c.refreshPod()
 	default:
 		return nil
 	}
 }
 
-// GetViewType returns the view type this controller manages
-func (c *DescribePodController) GetViewType() string {
-	return "describe_pod"
+// Render returns the rendered describe pod view
+func (c *DescribePodController) Render(width, height int) string {
+	c.width = width
+	c.height = height
+	c.describePodView.SetSize(width, height)
+	return c.describePodView.Render()
+}
+
+// refreshPod refreshes the pod details
+func (c *DescribePodController) refreshPod() tea.Cmd {
+	return func() tea.Msg {
+		pod, err := models.GetPod(c.clientset, c.namespace, c.podName)
+		if err != nil {
+			log.Printf("error refreshing pod details: %v", err)
+			return nil
+		}
+
+		// Update the describe pod view with new data
+		c.describePodView.UpdatePod(pod)
+		return nil
+	}
 }

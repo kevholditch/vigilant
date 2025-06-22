@@ -4,11 +4,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// Controller defines the interface for handling view-specific input
+// Controller defines the interface for handling view-specific input and rendering
 type Controller interface {
 	// HandleKey handles key press events and returns a command
 	HandleKey(msg tea.KeyMsg) tea.Cmd
 
-	// GetViewType returns the view type this controller manages
-	GetViewType() string
+	// Render returns the rendered view content
+	Render(width, height int) string
 }

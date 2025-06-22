@@ -10,7 +10,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kevholditch/vigilant/internal/controllers"
-	"github.com/kevholditch/vigilant/internal/models"
 	"github.com/kevholditch/vigilant/internal/theme"
 	"github.com/kevholditch/vigilant/internal/views"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,7 +27,9 @@ const (
 
 // ViewTransitionMsg represents a message to transition between views
 type ViewTransitionMsg struct {
-	ToView ViewType
+	ToView    ViewType
+	PodName   string
+	Namespace string
 }
 
 // App represents the main application
@@ -36,8 +37,6 @@ type App struct {
 	clientset         *kubernetes.Clientset
 	kubernetesVersion string
 	clusterName       string
-	podView           *views.PodView
-	describePodView   *views.DescribePodView
 	currentView       ViewType
 	width             int
 	height            int
@@ -117,19 +116,11 @@ func NewApp() *App {
 	workerNodes := len(workerNodesList.Items)
 	// --- End Node Counts ---
 
-	pods, err := models.GetPods(clientset)
-	if err != nil {
-		log.Fatalf("error getting pods: %v", err)
-	}
-
 	// Create theme
 	theme := theme.NewDefaultTheme()
 
-	podView := views.NewPodView(pods, theme, clusterName)
-
 	app := &App{
 		clientset:         clientset,
-		podView:           podView,
 		currentView:       PodListView,
 		theme:             theme,
 		clusterName:       clusterName,
@@ -150,15 +141,15 @@ func NewApp() *App {
 // initializeControllers sets up the controllers for different views
 func (a *App) initializeControllers() {
 	// Set up the default pod list controller
-	a.currentController = controllers.NewPodListController(a.podView, a.handleDescribePod)
+	a.currentController = controllers.NewPodListController(a.clientset, a.theme, a.clusterName, a.handleDescribePod)
 }
 
 // handleDescribePod handles the transition to describe pod view
-func (a *App) handleDescribePod(podView *views.PodView) tea.Cmd {
+func (a *App) handleDescribePod(podView *views.PodListView) tea.Cmd {
 	return func() tea.Msg {
 		selectedPod := podView.GetSelected()
 		if selectedPod != nil {
-			return ViewTransitionMsg{ToView: DescribePodView}
+			return ViewTransitionMsg{ToView: DescribePodView, PodName: selectedPod.Name, Namespace: selectedPod.Namespace}
 		}
 		return nil
 	}
@@ -209,17 +200,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ViewTransitionMsg:
 		switch msg.ToView {
 		case DescribePodView:
-			selectedPod := a.podView.GetSelected()
-			if selectedPod != nil {
-				a.describePodView = views.NewDescribePodView(selectedPod, a.theme)
-				a.describePodView.SetSize(a.width, a.height)
-				a.currentView = DescribePodView
-				a.currentController = controllers.NewDescribePodController(a.describePodView, a.handleBackToList)
-			}
+			a.currentView = DescribePodView
+			a.currentController = controllers.NewDescribePodController(a.clientset, a.theme, msg.PodName, msg.Namespace, a.handleBackToList)
 		case PodListView:
 			a.currentView = PodListView
-			a.describePodView = nil
-			a.currentController = controllers.NewPodListController(a.podView, a.handleDescribePod)
+			a.currentController = controllers.NewPodListController(a.clientset, a.theme, a.clusterName, a.handleDescribePod)
 		}
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
@@ -239,19 +224,10 @@ func (a *App) View() string {
 	viewDisplayHeight := a.height - headerHeight
 
 	var viewContent string
-	switch a.currentView {
-	case PodListView:
-		a.podView.SetSize(a.width, viewDisplayHeight)
-		viewContent = a.podView.Render()
-	case DescribePodView:
-		if a.describePodView != nil {
-			a.describePodView.SetSize(a.width, viewDisplayHeight)
-			viewContent = a.describePodView.Render()
-		} else {
-			viewContent = "Error: Describe pod view not initialized"
-		}
-	default:
-		viewContent = "Unknown view"
+	if a.currentController != nil {
+		viewContent = a.currentController.Render(a.width, viewDisplayHeight)
+	} else {
+		viewContent = "No controller available"
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, header, viewContent)
@@ -277,12 +253,7 @@ func (a *App) renderHeader() string {
 	case PodListView:
 		viewText = "🔍 Viewing pods"
 	case DescribePodView:
-		selectedPod := a.podView.GetSelected()
-		if selectedPod != nil {
-			viewText = fmt.Sprintf("🔍 Describing pod %s", selectedPod.Name)
-		} else {
-			viewText = "🔍 Describing pod"
-		}
+		viewText = "🔍 Describing pod"
 	}
 
 	controlPlaneInfo := fmt.Sprintf("🕹️ CP %d", a.controlPlaneNodes)

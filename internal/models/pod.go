@@ -23,22 +23,21 @@ type Pod struct {
 }
 
 // GetPods fetches a list of pods from the Kubernetes cluster
-func GetPods(clientset *kubernetes.Clientset) ([]Pod, error) {
-	// Fetch pods from all namespaces
-	podList, err := clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+// (Removed: now handled by the controller)
+
+// GetPod fetches a single pod by name and namespace
+func GetPod(clientset *kubernetes.Clientset, namespace, name string) (*Pod, error) {
+	k8sPod, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("could not list pods: %w", err)
+		return nil, fmt.Errorf("could not get pod %s in namespace %s: %w", name, namespace, err)
 	}
 
-	var pods []Pod
-	for _, k8sPod := range podList.Items {
-		pods = append(pods, toPodModel(k8sPod))
-	}
-	return pods, nil
+	pod := ToPodModel(*k8sPod)
+	return &pod, nil
 }
 
-// toPodModel converts a Kubernetes API pod object to our internal Pod model
-func toPodModel(p v1.Pod) Pod {
+// ToPodModel converts a Kubernetes API pod object to our internal Pod model
+func ToPodModel(p v1.Pod) Pod {
 	restarts := 0
 	readyContainers := 0
 	for _, cs := range p.Status.ContainerStatuses {

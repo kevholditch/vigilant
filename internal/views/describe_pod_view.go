@@ -36,6 +36,13 @@ func (dpv *DescribePodView) SetSize(width, height int) {
 	dpv.height = height
 }
 
+// UpdatePod updates the pod data and reloads the description
+func (dpv *DescribePodView) UpdatePod(pod *models.Pod) {
+	dpv.pod = pod
+	dpv.scrollY = 0 // Reset scroll position
+	dpv.loadPodDescription()
+}
+
 // ScrollUp moves the view up
 func (dpv *DescribePodView) ScrollUp() {
 	if dpv.scrollY > 0 {
