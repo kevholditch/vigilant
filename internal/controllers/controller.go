@@ -11,4 +11,7 @@ type Controller interface {
 
 	// Render returns the rendered view content
 	Render(width, height int) string
+
+	// ActionText returns the text to describe the action the controller is performing for the header bar
+	ActionText() string
 }

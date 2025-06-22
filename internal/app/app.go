@@ -248,13 +248,7 @@ func (a *App) renderHeader() string {
 	// --- Content ---
 	clusterInfo := fmt.Sprintf("☸️ %s", a.clusterName)
 
-	var viewText string
-	switch a.currentView {
-	case PodListView:
-		viewText = "🔍 Viewing pods"
-	case DescribePodView:
-		viewText = "🔍 Describing pod"
-	}
+	viewText := a.currentController.ActionText()
 
 	controlPlaneInfo := fmt.Sprintf("🕹️ CP %d", a.controlPlaneNodes)
 	workerInfo := fmt.Sprintf("👷 W %d", a.workerNodes)

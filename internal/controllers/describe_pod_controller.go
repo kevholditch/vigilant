@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"log"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -65,6 +66,11 @@ func (c *DescribePodController) HandleKey(msg tea.KeyMsg) tea.Cmd {
 	default:
 		return nil
 	}
+}
+
+// ActionText returns the text to describe the action the controller is performing for the header bar
+func (c *DescribePodController) ActionText() string {
+	return fmt.Sprintf("Describing pod %s", c.podName)
 }
 
 // Render returns the rendered describe pod view

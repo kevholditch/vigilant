@@ -72,6 +72,11 @@ func (c *PodListController) HandleKey(msg tea.KeyMsg) tea.Cmd {
 	}
 }
 
+// ActionText returns the text to describe the action the controller is performing for the header bar
+func (c *PodListController) ActionText() string {
+	return "Viewing pods"
+}
+
 // Render returns the rendered pod list view
 func (c *PodListController) Render(width, height int) string {
 	c.width = width
