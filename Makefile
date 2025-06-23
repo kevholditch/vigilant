@@ -59,10 +59,42 @@ test-ci:
 	@echo "Installing envtest binaries for Kubernetes version $(ENVTEST_K8S_VERSION)..."
 	@GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION)
 	@$(LOCALBIN)/setup-envtest use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path
-	@echo "Running tests..."
+	@echo "Setting up environment variables..."
 	@export KUBEBUILDER_ASSETS="$(shell $(LOCALBIN)/setup-envtest use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" && \
-	export PATH="$(LOCALBIN)/k8s/$(ENVTEST_K8S_VERSION)-linux-amd64:$$PATH" && \
+	echo "KUBEBUILDER_ASSETS=$$KUBEBUILDER_ASSETS" && \
+	echo "Checking for etcd binary..." && \
+	ls -la $$KUBEBUILDER_ASSETS && \
+	echo "Running tests..." && \
 	go test ./... -v
+
+# Alternative test target for CI environments (simpler approach)
+test-ci-simple:
+	@echo "Running tests in CI environment (simple approach)..."
+	@echo "Installing envtest binaries for Kubernetes version $(ENVTEST_K8S_VERSION)..."
+	@GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION)
+	@echo "Downloading Kubernetes binaries for current platform..."
+	@$(LOCALBIN)/setup-envtest use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path
+	@echo "Running tests with KUBEBUILDER_ASSETS..."
+	@KUBEBUILDER_ASSETS="$(shell $(LOCALBIN)/setup-envtest use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -v
+
+# Debug target to help troubleshoot CI issues
+debug-ci:
+	@echo "Debugging CI environment..."
+	@echo "Current directory: $(shell pwd)"
+	@echo "LOCALBIN: $(LOCALBIN)"
+	@echo "ENVTEST_K8S_VERSION: $(ENVTEST_K8S_VERSION)"
+	@echo "ENVTEST_VERSION: $(ENVTEST_VERSION)"
+	@ls -la $(LOCALBIN) || echo "LOCALBIN directory does not exist"
+	@echo "Installing setup-envtest..."
+	@GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION)
+	@echo "setup-envtest installed at: $(LOCALBIN)/setup-envtest"
+	@ls -la $(LOCALBIN)/setup-envtest
+	@echo "Downloading Kubernetes binaries..."
+	@$(LOCALBIN)/setup-envtest use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path
+	@echo "KUBEBUILDER_ASSETS path: $(shell $(LOCALBIN)/setup-envtest use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)"
+	@echo "Checking binary directory:"
+	@ls -la $(LOCALBIN)/k8s/ || echo "k8s directory does not exist"
+	@find $(LOCALBIN) -name "etcd" -type f 2>/dev/null || echo "etcd binary not found"
 
 setup-envtest: envtest
 	@echo "Setting up envtest binaries for Kubernetes version $(ENVTEST_K8S_VERSION)..."
