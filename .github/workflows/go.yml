@@ -24,8 +24,5 @@ jobs:
     - name: Build
       run: go build -v ./...
 
-    - name: Debug CI Environment
-      run: make debug-ci
-
     - name: Test
       run: make test-ci-simple
