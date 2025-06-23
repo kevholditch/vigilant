@@ -167,3 +167,8 @@ func (plv *PodListView) renderStatusBar() string {
 
 	return plv.theme.StatusBarStyle.Width(plv.width).Render(statusText)
 }
+
+// Pods returns the list of pods (for testing)
+func (plv *PodListView) Pods() []models.Pod {
+	return plv.pods
+}

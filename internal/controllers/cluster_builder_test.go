@@ -86,6 +86,50 @@ func (cb *ClusterBuilder) WithMasterNodes(count int) *ClusterBuilder {
 	return cb
 }
 
+// WithNamespace creates a namespace with the given name if it does not already exist
+func (cb *ClusterBuilder) WithNamespace(name string) *ClusterBuilder {
+	nsClient := cb.clientset.CoreV1().Namespaces()
+	_, err := nsClient.Get(context.TODO(), name, metav1.GetOptions{})
+	if err == nil {
+		// Namespace already exists
+		return cb
+	}
+	// Only create if not found
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+	_, err = nsClient.Create(context.TODO(), namespace, metav1.CreateOptions{})
+	require.NoError(cb.t, err)
+	return cb
+}
+
+// WithPod creates a pod with the given name and namespace
+func (cb *ClusterBuilder) WithPod(name, namespace string) *ClusterBuilder {
+	// Create namespace if it doesn't exist
+	cb.WithNamespace(namespace)
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    map[string]string{},
+			// Set creation timestamp to now for age calculation
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "c", Image: "busybox"}},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			PodIP: "1.2.3.4",
+		},
+	}
+	_, err := cb.clientset.CoreV1().Pods(namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
+	require.NoError(cb.t, err)
+	return cb
+}
+
 // Cleanup stops the envtest environment
 func (cb *ClusterBuilder) Cleanup() {
 	if cb.env != nil {
