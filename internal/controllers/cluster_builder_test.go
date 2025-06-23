@@ -10,6 +10,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 // ClusterBuilder provides a fluent interface for building Kubernetes test clusters
@@ -22,6 +24,9 @@ type ClusterBuilder struct {
 
 // NewClusterBuilder creates a new cluster builder and starts the envtest environment
 func NewClusterBuilder(t *testing.T) *ClusterBuilder {
+	// Set up logging for controller-runtime
+	log.SetLogger(zap.New(zap.UseDevMode(true)))
+
 	env := &envtest.Environment{
 		CRDDirectoryPaths:     []string{},
 		ErrorIfCRDPathMissing: false,

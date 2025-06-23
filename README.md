@@ -1,3 +1,5 @@
+[![Build Status](https://github.com/kevholditch/vigilant/actions/workflows/go.yml/badge.svg?branch=main)](https://github.com/kevholditch/vigilant/actions/workflows/go.yml)
+
 # Vigilant
 
 Vibe coding the missing Kubernetes UI!
