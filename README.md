@@ -1,4 +1,4 @@
-[![Build Status](https://github.com/kevholditch/vigilant/actions/workflows/go.yml/badge.svg?branch=main)](https://github.com/kevholditch/vigilant/actions/workflows/go.yml)
+[![Build Status](https://github.com/kevholditch/vigilant/actions/workflows/go.yml/badge.svg?branch=main&cache=1)](https://github.com/kevholditch/vigilant/actions/workflows/go.yml)
 
 # Vigilant
 
