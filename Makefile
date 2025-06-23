@@ -74,8 +74,10 @@ test-ci-simple:
 	@GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION)
 	@echo "Downloading Kubernetes binaries for current platform..."
 	@$(LOCALBIN)/setup-envtest use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path
-	@echo "Running tests with KUBEBUILDER_ASSETS..."
-	@KUBEBUILDER_ASSETS="$(shell $(LOCALBIN)/setup-envtest use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -v
+	@echo "Running tests with KUBEBUILDER_ASSETS and PATH..."
+	@export KUBEBUILDER_ASSETS="$$($(LOCALBIN)/setup-envtest use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" && \
+	export PATH="$$KUBEBUILDER_ASSETS:$$PATH" && \
+	go test ./... -v
 
 setup-envtest: envtest
 	@echo "Setting up envtest binaries for Kubernetes version $(ENVTEST_K8S_VERSION)..."
