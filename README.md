@@ -1,6 +1,6 @@
 # Vigilant
 
-A hobby project to build a modern terminal UI for Kubernetes using AI-assisted development.
+Vibe coding the missing Kubernetes UI!
 
 ## About
 
@@ -28,13 +28,13 @@ Vigilant is an experimental terminal-based Kubernetes management tool built with
 git clone https://github.com/kevholditch/vigilant.git
 cd vigilant
 go mod tidy
-go run .
+make run
 ```
 
 ### Build binary
 
 ```bash
-go build -o vigilant .
+make build
 ./vigilant
 ```
 
@@ -42,6 +42,8 @@ go build -o vigilant .
 
 ```bash
 # Run the application
+make run
+# or
 ./vigilant
 ```
 
@@ -65,6 +67,25 @@ This is a hobby project exploring terminal UI development with the following fea
 3. **Theme System**: Cyberpunk-themed UI with consistent styling
 4. **Keyboard Navigation**: Full keyboard support for navigation and interaction
 5. **Cluster Information**: Real-time display of cluster name, Kubernetes version, and node counts
+
+### Available Make Commands
+
+```bash
+make build      # Build the binary
+make run        # Run the application
+make test       # Run all tests (includes setting up envtest binaries)
+make clean      # Clean build artifacts
+```
+
+### Testing
+
+The project includes comprehensive tests using the Kubernetes controller-runtime envtest framework:
+
+```bash
+make test       # Run all tests with proper envtest setup
+```
+
+The test suite includes BDD-style scenarios for the header controller with given-when-then structure.
 
 ### Future Ideas
 

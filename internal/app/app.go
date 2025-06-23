@@ -28,7 +28,7 @@ type App struct {
 func NewApp() *App {
 	clientset, err := newClientSet()
 	if err != nil {
-		log.Fatal("error creating Kubernetes client: %v", err)
+		log.Fatal(fmt.Sprintf("error creating Kubernetes client: %v", err))
 	}
 
 	// Create theme
