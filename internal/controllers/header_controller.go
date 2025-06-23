@@ -49,29 +49,24 @@ func buildHeaderModel(clientset *kubernetes.Clientset) *models.HeaderModel {
 		k8sVersion = version.String()
 	}
 
-	// Get control plane nodes
-	controlPlaneNodesList, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
-		LabelSelector: "node-role.kubernetes.io/control-plane",
-	})
+	// List all nodes and count control plane and worker nodes
+	nodeList, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err == nil {
-		controlPlaneNodes = len(controlPlaneNodesList.Items)
-	}
-	// If no control plane nodes found with the new label, try the old master label
-	if controlPlaneNodes == 0 {
-		masterNodesList, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
-			LabelSelector: "node-role.kubernetes.io/master",
-		})
-		if err == nil {
-			controlPlaneNodes = len(masterNodesList.Items)
+		for _, node := range nodeList.Items {
+			labels := node.GetLabels()
+			isControlPlane := false
+			if _, ok := labels["node-role.kubernetes.io/control-plane"]; ok {
+				isControlPlane = true
+			}
+			if _, ok := labels["node-role.kubernetes.io/master"]; ok {
+				isControlPlane = true
+			}
+			if isControlPlane {
+				controlPlaneNodes++
+			} else {
+				workerNodes++
+			}
 		}
-	}
-
-	// Get worker nodes (nodes without control-plane or master labels)
-	workerNodesList, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
-		LabelSelector: "!node-role.kubernetes.io/control-plane,!node-role.kubernetes.io/master",
-	})
-	if err == nil {
-		workerNodes = len(workerNodesList.Items)
 	}
 
 	return &models.HeaderModel{

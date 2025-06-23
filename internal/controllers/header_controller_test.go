@@ -2,81 +2,125 @@ package controllers
 
 import (
 	"testing"
+
+	"github.com/kevholditch/vigilant/internal/models"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestHeaderController(t *testing.T) {
-	t.Run("should correctly count worker nodes", func(t *testing.T) {
-		s := NewHeaderControllerScenario(t)
-		defer s.Cleanup()
+	t.Run("should_correctly_count_worker_nodes", func(t *testing.T) {
+		scenario := NewHeaderControllerScenario(t)
+		defer scenario.Cleanup()
 
-		s.Given().a_kubernetes_cluster_with_3_worker_nodes()
-
-		s.When().the_header_controller_is_instantiated().and().
-			the_header_model_is_built()
-
-		s.Then().the_header_model_worker_nodes_count_should_be(3).and().
-			the_header_model_control_plane_nodes_count_should_be(0).and().
-			the_header_model_kubernetes_version_should_not_be_empty().and().
-			the_header_model_cluster_name_should_be_empty()
+		scenario.Given().
+			ConfigureCluster(func(builder *ClusterBuilder) {
+				builder.WithWorkerNodes(3)
+			}).
+			When().
+			the_header_model_is_built().
+			Then().
+			the_header_model_should_be(func(m *models.HeaderModel) {
+				assert.Equal(t, 3, m.WorkerNodes)
+				assert.Equal(t, 0, m.ControlPlaneNodes)
+				assert.NotEmpty(t, m.KubernetesVersion)
+				assert.Empty(t, m.ClusterName)
+			})
 	})
 
-	t.Run("should correctly count control plane nodes", func(t *testing.T) {
-		s := NewHeaderControllerScenario(t)
-		defer s.Cleanup()
+	t.Run("should_correctly_count_control_plane_nodes", func(t *testing.T) {
+		scenario := NewHeaderControllerScenario(t)
+		defer scenario.Cleanup()
 
-		s.Given().a_kubernetes_cluster_with_2_control_plane_nodes()
-
-		s.When().the_header_controller_is_instantiated().and().
-			the_header_model_is_built()
-
-		s.Then().the_header_model_worker_nodes_count_should_be(0).and().
-			the_header_model_control_plane_nodes_count_should_be(2).and().
-			the_header_model_kubernetes_version_should_not_be_empty().and().
-			the_header_model_cluster_name_should_be_empty()
+		scenario.Given().
+			ConfigureCluster(func(builder *ClusterBuilder) {
+				builder.WithControlPlaneNodes(2)
+			}).
+			When().
+			the_header_model_is_built().
+			Then().
+			the_header_model_should_be(func(m *models.HeaderModel) {
+				assert.Equal(t, 0, m.WorkerNodes)
+				assert.Equal(t, 2, m.ControlPlaneNodes)
+				assert.NotEmpty(t, m.KubernetesVersion)
+				assert.Empty(t, m.ClusterName)
+			})
 	})
 
-	t.Run("should correctly count mixed nodes", func(t *testing.T) {
-		s := NewHeaderControllerScenario(t)
-		defer s.Cleanup()
+	t.Run("should_correctly_count_mixed_nodes", func(t *testing.T) {
+		scenario := NewHeaderControllerScenario(t)
+		defer scenario.Cleanup()
 
-		s.Given().a_kubernetes_cluster_with_mixed_nodes()
-
-		s.When().the_header_controller_is_instantiated().and().
-			the_header_model_is_built()
-
-		s.Then().the_header_model_worker_nodes_count_should_be(3).and().
-			the_header_model_control_plane_nodes_count_should_be(2).and().
-			the_header_model_kubernetes_version_should_not_be_empty().and().
-			the_header_model_cluster_name_should_be_empty()
+		scenario.Given().
+			ConfigureCluster(func(builder *ClusterBuilder) {
+				builder.WithControlPlaneNodes(2).WithWorkerNodes(3)
+			}).
+			When().
+			the_header_model_is_built().
+			Then().
+			the_header_model_should_be(func(m *models.HeaderModel) {
+				assert.Equal(t, 3, m.WorkerNodes)
+				assert.Equal(t, 2, m.ControlPlaneNodes)
+				assert.NotEmpty(t, m.KubernetesVersion)
+				assert.Empty(t, m.ClusterName)
+			})
 	})
 
-	t.Run("should handle legacy master nodes", func(t *testing.T) {
-		s := NewHeaderControllerScenario(t)
-		defer s.Cleanup()
+	t.Run("should_handle_legacy_master_nodes", func(t *testing.T) {
+		scenario := NewHeaderControllerScenario(t)
+		defer scenario.Cleanup()
 
-		s.Given().a_kubernetes_cluster_with_legacy_master_nodes()
-
-		s.When().the_header_controller_is_instantiated().and().
-			the_header_model_is_built()
-
-		s.Then().the_header_model_worker_nodes_count_should_be(0).and().
-			the_header_model_control_plane_nodes_count_should_be(1).and().
-			the_header_model_kubernetes_version_should_not_be_empty().and().
-			the_header_model_cluster_name_should_be_empty()
+		scenario.Given().
+			ConfigureCluster(func(builder *ClusterBuilder) {
+				builder.WithMasterNodes(1)
+			}).
+			When().
+			the_header_model_is_built().
+			Then().
+			the_header_model_should_be(func(m *models.HeaderModel) {
+				assert.Equal(t, 0, m.WorkerNodes)
+				assert.Equal(t, 1, m.ControlPlaneNodes)
+				assert.NotEmpty(t, m.KubernetesVersion)
+				assert.Empty(t, m.ClusterName)
+			})
 	})
 
-	t.Run("should handle empty cluster", func(t *testing.T) {
-		s := NewHeaderControllerScenario(t)
-		defer s.Cleanup()
+	t.Run("should_handle_empty_cluster", func(t *testing.T) {
+		scenario := NewHeaderControllerScenario(t)
+		defer scenario.Cleanup()
 
-		s.Given().an_empty_kubernetes_cluster()
+		scenario.Given().
+			ConfigureCluster(func(builder *ClusterBuilder) {
+				// No nodes added - empty cluster
+			}).
+			When().
+			the_header_model_is_built().
+			Then().
+			the_header_model_should_be(func(m *models.HeaderModel) {
+				assert.Equal(t, 0, m.WorkerNodes)
+				assert.Equal(t, 0, m.ControlPlaneNodes)
+				assert.NotEmpty(t, m.KubernetesVersion)
+				assert.Empty(t, m.ClusterName)
+			})
+	})
 
-		s.When().the_header_controller_is_instantiated().and().
-			the_header_model_is_built()
+	t.Run("should_handle_complex_cluster_with_fluent_builder", func(t *testing.T) {
+		scenario := NewHeaderControllerScenario(t)
+		defer scenario.Cleanup()
 
-		s.Then().the_header_model_worker_nodes_count_should_be(0).and().
-			the_header_model_control_plane_nodes_count_should_be(0).and().
-			the_header_model_kubernetes_version_should_not_be_empty().and().
-			the_header_model_cluster_name_should_be_empty()
+		scenario.Given().
+			ConfigureCluster(func(builder *ClusterBuilder) {
+				builder.WithControlPlaneNodes(3).
+					WithWorkerNodes(5).
+					WithMasterNodes(1)
+			}).
+			When().
+			the_header_model_is_built().
+			Then().
+			the_header_model_should_be(func(m *models.HeaderModel) {
+				assert.Equal(t, 4, m.ControlPlaneNodes) // 3 control plane + 1 master
+				assert.Equal(t, 5, m.WorkerNodes)
+				assert.NotEmpty(t, m.KubernetesVersion)
+				assert.Empty(t, m.ClusterName)
+			})
 	})
 }
