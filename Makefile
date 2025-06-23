@@ -12,6 +12,9 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GORUN=$(GOCMD) run
 
+# Detect if we're in CI (GitHub Actions sets CI=true)
+CI ?= false
+
 # Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
@@ -26,7 +29,7 @@ ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
 
-.PHONY: all build run clean test setup-envtest envtest
+.PHONY: all build run clean test test-ci setup-envtest envtest
 
 all: build
 
@@ -45,9 +48,19 @@ clean:
 	@echo "Cleaning..."
 	@rm -f $(BINARY_NAME)
 
+# Test target for local development
 test: setup-envtest
 	@echo "Running tests..."
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -v
+
+# Test target for CI environments
+test-ci:
+	@echo "Running tests in CI environment..."
+	@echo "Installing envtest binaries for Kubernetes version $(ENVTEST_K8S_VERSION)..."
+	@GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION)
+	@$(LOCALBIN)/setup-envtest use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path
+	@echo "Running tests..."
+	@KUBEBUILDER_ASSETS="$(shell $(LOCALBIN)/setup-envtest use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -v
 
 setup-envtest: envtest
 	@echo "Setting up envtest binaries for Kubernetes version $(ENVTEST_K8S_VERSION)..."
