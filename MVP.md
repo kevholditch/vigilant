@@ -10,6 +10,7 @@ Track progress implementing read-only UI features in the `vigilant` project for 
 - [x] View pod logs
 - [ ] Show container specs (image, ports, limits, env)
 - [ ] List related events
+- [ ] Auto refresh
 
 ---
 

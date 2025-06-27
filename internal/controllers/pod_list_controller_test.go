@@ -85,4 +85,26 @@ func TestPodListController(t *testing.T) {
 				assert.ElementsMatch(t, []string{"pod-a", "pod-b"}, []string{pods[0].Name, pods[1].Name})
 			})
 	})
+
+	t.Run("should_automatically_detect_new_pods_via_watch", func(t *testing.T) {
+		s := NewPodListControllerScenario(t)
+		defer s.Cleanup()
+		s.Given().
+			ConfigureCluster(func(builder *ClusterBuilder) {
+				builder.WithPod("pod-a", "ns1")
+			}).
+			the_pod_list_controller_is_instantiated().
+			Then().
+			the_pod_list_should_be(func(pods []models.Pod) {
+				assert.Len(t, pods, 1)
+				assert.Equal(t, "pod-a", pods[0].Name)
+			}).
+			When().
+			a_new_pod_is_added_to_cluster("pod-b", "ns1").
+			Then().
+			the_pod_list_should_be(func(pods []models.Pod) {
+				assert.Len(t, pods, 2)
+				assert.ElementsMatch(t, []string{"pod-a", "pod-b"}, []string{pods[0].Name, pods[1].Name})
+			})
+	})
 }

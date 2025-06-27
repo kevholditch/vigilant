@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"testing"
+	"time"
 
 	"github.com/kevholditch/vigilant/internal/models"
 	"github.com/kevholditch/vigilant/internal/theme"
@@ -54,7 +55,7 @@ func (s *PodListControllerScenario) select_prev_pod() *PodListControllerScenario
 }
 
 func (s *PodListControllerScenario) the_pod_list_should_be(assertFn func([]models.Pod)) *PodListControllerScenario {
-	pods := s.controller.podView.Pods()
+	pods := s.controller.GetPods()
 	assertFn(pods)
 	return s
 }
@@ -72,7 +73,33 @@ func (s *PodListControllerScenario) refresh_pods() *PodListControllerScenario {
 	return s
 }
 
+func (s *PodListControllerScenario) a_new_pod_is_added_to_cluster(name, namespace string) *PodListControllerScenario {
+	// Add the pod to the cluster
+	s.builder.WithPod(name, namespace)
+
+	// Wait for the watch to detect the change by polling until the pod appears
+	// This is deterministic because we're waiting for a specific condition
+	maxAttempts := 10
+	for i := 0; i < maxAttempts; i++ {
+		pods := s.controller.GetPods()
+		for _, pod := range pods {
+			if pod.Name == name && pod.Namespace == namespace {
+				return s // Pod found, test can continue
+			}
+		}
+		// Small delay between attempts
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	// If we get here, the pod wasn't detected - this will cause the test to fail
+	s.t.Errorf("Pod %s in namespace %s was not detected by watch after %d attempts", name, namespace, maxAttempts)
+	return s
+}
+
 func (s *PodListControllerScenario) Cleanup() {
+	if s.controller != nil {
+		s.controller.Stop()
+	}
 	if s.builder != nil {
 		s.builder.Cleanup()
 	}
