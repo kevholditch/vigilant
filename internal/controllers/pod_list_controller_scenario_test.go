@@ -34,7 +34,7 @@ func (s *PodListControllerScenario) ConfigureCluster(configFn func(*ClusterBuild
 
 func (s *PodListControllerScenario) the_pod_list_controller_is_instantiated() *PodListControllerScenario {
 	theme := theme.NewDefaultTheme()
-	s.controller = NewPodListController(s.builder.GetClientset(), theme, "test-cluster", nil)
+	s.controller = NewPodListController(s.builder.GetClientset(), theme, "test-cluster", nil, nil)
 	return s
 }
 

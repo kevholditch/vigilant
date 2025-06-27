@@ -15,10 +15,12 @@ type PodController struct {
 
 	// Current state
 	isShowingList bool
+	isShowingLogs bool
 
 	// Controllers
 	listCtrl     *PodListController
 	describeCtrl *DescribePodController
+	logCtrl      *PodLogController
 }
 
 // NewPodController creates a new pod controller that manages both list and describe views
@@ -28,10 +30,11 @@ func NewPodController(clientset *kubernetes.Clientset, theme *theme.Theme, clust
 		theme:         theme,
 		clusterName:   clusterName,
 		isShowingList: true,
+		isShowingLogs: false,
 	}
 
-	// Initialize the list controller with a callback to switch to describe view
-	pc.listCtrl = NewPodListController(clientset, theme, clusterName, pc.handleDescribePod)
+	// Initialize the list controller with callbacks to switch to describe view and logs view
+	pc.listCtrl = NewPodListController(clientset, theme, clusterName, pc.handleDescribePod, pc.handleOpenLogs)
 
 	return pc
 }
@@ -42,8 +45,29 @@ func (pc *PodController) handleDescribePod(podView *views.PodListView) tea.Cmd {
 		selectedPod := podView.GetSelected()
 		if selectedPod != nil {
 			pc.isShowingList = false
+			pc.isShowingLogs = false
 			pc.describeCtrl = NewDescribePodController(
 				pc.clientset,
+				pc.theme,
+				selectedPod.Name,
+				selectedPod.Namespace,
+				pc.handleBackToList,
+			)
+		}
+		return nil
+	}
+}
+
+// handleOpenLogs handles the transition to pod logs view
+func (pc *PodController) handleOpenLogs(podView *views.PodListView) tea.Cmd {
+	return func() tea.Msg {
+		selectedPod := podView.GetSelected()
+		if selectedPod != nil {
+			pc.isShowingList = false
+			pc.isShowingLogs = true
+			logFetcher := NewKubernetesLogFetcher(pc.clientset)
+			pc.logCtrl = NewPodLogController(
+				logFetcher,
 				pc.theme,
 				selectedPod.Name,
 				selectedPod.Namespace,
@@ -58,7 +82,9 @@ func (pc *PodController) handleDescribePod(podView *views.PodListView) tea.Cmd {
 func (pc *PodController) handleBackToList() tea.Cmd {
 	return func() tea.Msg {
 		pc.isShowingList = true
+		pc.isShowingLogs = false
 		pc.describeCtrl = nil
+		pc.logCtrl = nil
 		return nil
 	}
 }
@@ -75,6 +101,8 @@ func (pc *PodController) HandleKey(msg tea.KeyMsg) tea.Cmd {
 		return cmd
 	} else if pc.describeCtrl != nil {
 		return pc.describeCtrl.HandleKey(msg)
+	} else if pc.logCtrl != nil {
+		return pc.logCtrl.HandleKey(msg)
 	}
 	return nil
 }
@@ -85,6 +113,8 @@ func (pc *PodController) Render(width, height int) string {
 		return pc.listCtrl.Render(width, height)
 	} else if pc.describeCtrl != nil {
 		return pc.describeCtrl.Render(width, height)
+	} else if pc.logCtrl != nil {
+		return pc.logCtrl.Render(width, height)
 	}
 	return "No view available"
 }
@@ -95,6 +125,8 @@ func (pc *PodController) ActionText() string {
 		return pc.listCtrl.ActionText()
 	} else if pc.describeCtrl != nil {
 		return pc.describeCtrl.ActionText()
+	} else if pc.logCtrl != nil {
+		return pc.logCtrl.ActionText()
 	}
 	return "Unknown action"
 }

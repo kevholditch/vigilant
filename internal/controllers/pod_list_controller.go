@@ -16,6 +16,7 @@ import (
 type PodListController struct {
 	podView       *views.PodListView
 	onDescribePod func(*views.PodListView) tea.Cmd
+	onOpenLogs    func(*views.PodListView) tea.Cmd
 	clientset     *kubernetes.Clientset
 	theme         *theme.Theme
 	clusterName   string
@@ -24,7 +25,7 @@ type PodListController struct {
 }
 
 // NewPodListController creates a new pod list controller
-func NewPodListController(clientset *kubernetes.Clientset, theme *theme.Theme, clusterName string, onDescribePod func(*views.PodListView) tea.Cmd) *PodListController {
+func NewPodListController(clientset *kubernetes.Clientset, theme *theme.Theme, clusterName string, onDescribePod func(*views.PodListView) tea.Cmd, onOpenLogs func(*views.PodListView) tea.Cmd) *PodListController {
 	// Fetch pods data (logic moved from models)
 	pods := fetchPods(clientset)
 
@@ -33,6 +34,7 @@ func NewPodListController(clientset *kubernetes.Clientset, theme *theme.Theme, c
 	return &PodListController{
 		podView:       podView,
 		onDescribePod: onDescribePod,
+		onOpenLogs:    onOpenLogs,
 		clientset:     clientset,
 		theme:         theme,
 		clusterName:   clusterName,
@@ -64,6 +66,8 @@ func (c *PodListController) HandleKey(msg tea.KeyMsg) tea.Cmd {
 		return nil
 	case "d":
 		return c.onDescribePod(c.podView)
+	case "l":
+		return c.onOpenLogs(c.podView)
 	case "r":
 		// Refresh pods data
 		return c.refreshPods()

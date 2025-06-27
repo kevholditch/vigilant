@@ -155,16 +155,7 @@ func (plv *PodListView) renderTable() string {
 
 // renderStatusBar renders the status bar at the bottom
 func (plv *PodListView) renderStatusBar() string {
-	selectedPod := plv.GetSelected()
-	var statusText string
-
-	if selectedPod != nil {
-		statusText = fmt.Sprintf("Selected: %s (%s) | Total: %d pods | Press 'd' to describe",
-			selectedPod.Name, selectedPod.Status, len(plv.pods))
-	} else {
-		statusText = fmt.Sprintf("Total: %d pods | Press 'd' to describe", len(plv.pods))
-	}
-
+	statusText := fmt.Sprintf("Total: %d pods | Press 'd' to describe | Press 'l' to view logs", len(plv.pods))
 	return plv.theme.StatusBarStyle.Width(plv.width).Render(statusText)
 }
 
