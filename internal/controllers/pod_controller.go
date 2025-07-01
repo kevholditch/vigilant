@@ -119,6 +119,11 @@ func (pc *PodController) Render(width, height int) string {
 	return "No view available"
 }
 
+// GetListController returns the pod list controller
+func (pc *PodController) GetListController() *PodListController {
+	return pc.listCtrl
+}
+
 // ActionText returns the action text from the active controller
 func (pc *PodController) ActionText() string {
 	if pc.isShowingList {
@@ -129,4 +134,13 @@ func (pc *PodController) ActionText() string {
 		return pc.logCtrl.ActionText()
 	}
 	return "Unknown action"
+}
+
+// GetUpdateChannel returns the update channel from the active controller
+func (pc *PodController) GetUpdateChannel() <-chan tea.Msg {
+	if pc.isShowingList && pc.listCtrl != nil {
+		return pc.listCtrl.GetUpdateChannel()
+	}
+	// Return nil channel if no updateable controller is active
+	return nil
 }

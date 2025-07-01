@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -75,6 +76,17 @@ func (a *App) initializeControllers() {
 	a.headerController = controllers.NewHeaderController(a.theme, a.clientset)
 }
 
+// tickMsg is sent periodically to check for updates
+type tickMsg time.Time
+
+// tick returns a command that sends a tick message
+func tick() tea.Cmd {
+	return func() tea.Msg {
+		time.Sleep(time.Second)
+		return tickMsg(time.Now())
+	}
+}
+
 // Run starts the application
 func (a *App) Run() error {
 	fmt.Println("Starting Vigilant...")
@@ -94,7 +106,7 @@ func (a *App) Run() error {
 
 // Init initializes the application
 func (a *App) Init() tea.Cmd {
-	return nil
+	return tick()
 }
 
 // Update handles messages and updates the application state
@@ -113,6 +125,23 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
+	case controllers.UpdateMsg:
+		// Update received, trigger a re-render
+		return a, tick()
+	case tickMsg:
+		// Check if we need to update the view
+		if a.currentController != nil {
+			// Try to get update channel from the current controller
+			if updateableController, ok := a.currentController.(controllers.UpdateableController); ok {
+				updateChan := updateableController.GetUpdateChannel()
+				if updateChan != nil {
+					// Force a re-render by calling Render
+					headerHeight := a.headerController.GetHeight()
+					a.currentController.Render(a.width, a.height-headerHeight)
+				}
+			}
+		}
+		return a, tick()
 	}
 	return a, nil
 }

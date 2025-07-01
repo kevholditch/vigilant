@@ -15,3 +15,11 @@ type Controller interface {
 	// ActionText returns the text to describe the action the controller is performing for the header bar
 	ActionText() string
 }
+
+// UpdateableController extends Controller with update functionality
+type UpdateableController interface {
+	Controller
+
+	// GetUpdateChannel returns a channel for receiving update messages
+	GetUpdateChannel() <-chan tea.Msg
+}

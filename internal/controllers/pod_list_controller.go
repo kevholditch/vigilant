@@ -16,6 +16,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+// UpdateMsg is sent when a controller needs to trigger a re-render
+type UpdateMsg struct{}
+
 var debugLogger *log.Logger
 
 func init() {
@@ -47,6 +50,9 @@ type PodListController struct {
 	resourceVersion string // <--- store resource version here
 	needsUpdate     bool   // Flag to indicate if view needs updating
 
+	// Message channel for updates
+	updateChan chan tea.Msg
+
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -61,6 +67,7 @@ func NewPodListController(clientset *kubernetes.Clientset, theme *theme.Theme, c
 		theme:         theme,
 		clusterName:   clusterName,
 		pods:          make(map[string]models.Pod),
+		updateChan:    make(chan tea.Msg),
 		ctx:           ctx,
 		cancel:        cancel,
 	}
@@ -154,6 +161,10 @@ func (c *PodListController) watchPods() {
 			}
 			c.needsUpdate = true
 			c.podsMutex.Unlock()
+
+			// Send update message to trigger re-render
+			SendUpdate(c.updateChan)
+			debugLogger.Printf("Sent UpdateMsg for %s event", event.Type)
 		}
 	}
 }
@@ -215,6 +226,7 @@ func (c *PodListController) Render(width, height int) string {
 
 	debugLogger.Printf("[Render] Called. needsUpdate: %v", c.needsUpdate)
 
+	// Always update the view if needed, regardless of needsUpdate flag
 	c.podsMutex.Lock()
 	if c.needsUpdate {
 		debugLogger.Printf("[Render] needsUpdate is true, calling updateView")
@@ -253,6 +265,21 @@ func (c *PodListController) GetPods() []models.Pod {
 	c.podsMutex.RLock()
 	defer c.podsMutex.RUnlock()
 	return c.getPodsList()
+}
+
+// SendUpdate sends an UpdateMsg through the given channel
+func SendUpdate(updateChan chan<- tea.Msg) {
+	select {
+	case updateChan <- UpdateMsg{}:
+		// Message sent successfully
+	default:
+		// Channel is full, skip sending message
+	}
+}
+
+// GetUpdateChannel returns the channel for pod update messages
+func (c *PodListController) GetUpdateChannel() <-chan tea.Msg {
+	return c.updateChan
 }
 
 // Stop stops the watch goroutine
