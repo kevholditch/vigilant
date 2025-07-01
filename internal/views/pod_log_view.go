@@ -201,7 +201,7 @@ func (plv *PodLogView) renderContent() string {
 
 // renderStatusBar renders the status bar at the bottom
 func (plv *PodLogView) renderStatusBar() string {
-	statusText := fmt.Sprintf("Logs: %s | Press 'Esc' to return | Use ↑/↓ to scroll | PgUp/PgDn for page scroll | g/G for start/end | Press 'r' to refresh", plv.podName)
+	statusText := fmt.Sprintf("Logs: %s | Press 'Esc' to return | Use up/down arrows to scroll | PgUp/PgDn for page scroll | g/G for start/end | Press 'r' to refresh", plv.podName)
 	return plv.theme.StatusBarStyle.Width(plv.width).Render(statusText)
 }
 

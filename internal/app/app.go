@@ -24,10 +24,7 @@ type App struct {
 	currentController    controllers.Controller
 	headerController     *controllers.HeaderController
 	commandBarController *controllers.CommandBarController
-
-	// Available controllers
-	podController        *controllers.PodController
-	deploymentController *controllers.DeploymentController
+	controllerRegistry   *controllers.ControllerRegistry
 }
 
 // NewApp creates a new application instance
@@ -74,34 +71,30 @@ func newClientSet() (*kubernetes.Clientset, error) {
 
 // initializeControllers sets up the controllers
 func (a *App) initializeControllers() {
-	// Set up the pod controller (default view)
-	a.podController = controllers.NewPodController(a.clientset, a.theme, "")
-
-	// Set up the deployment controller
-	a.deploymentController = controllers.NewDeploymentController(a.clientset, a.theme, "")
-
-	// Set the default controller to pods
-	a.currentController = a.podController
-
-	// Set up the header controller
+	a.buildRegistry()
+	if controller, exists := a.controllerRegistry.GetController("pods"); exists {
+		a.currentController = controller
+	}
 	a.headerController = controllers.NewHeaderController(a.theme, a.clientset)
-
-	// Set up the command bar controller
-	availableResources := []string{"pods", "deployments"}
+	availableResources := a.controllerRegistry.GetAvailableResources()
 	a.commandBarController = controllers.NewCommandBarController(a.clientset, a.theme, "", availableResources, a.handleViewSwitch)
+}
+
+func (a *App) buildRegistry() {
+	a.controllerRegistry = controllers.NewControllerRegistry(a.clientset, a.theme)
+	a.controllerRegistry.Register("pods", func(clientset *kubernetes.Clientset, theme *controllers.Theme) controllers.Controller {
+		return controllers.NewPodController(clientset, theme, "")
+	})
+	a.controllerRegistry.Register("deployments", func(clientset *kubernetes.Clientset, theme *controllers.Theme) controllers.Controller {
+		return controllers.NewDeploymentController(clientset, theme, "")
+	})
 }
 
 // handleViewSwitch handles switching between different views
 func (a *App) handleViewSwitch(resource string) tea.Cmd {
 	return func() tea.Msg {
-		switch resource {
-		case "pods":
-			a.currentController = a.podController
-		case "deployments":
-			a.currentController = a.deploymentController
-		default:
-			// Unknown resource, keep current view
-			return nil
+		if controller, exists := a.controllerRegistry.GetController(resource); exists {
+			a.currentController = controller
 		}
 		return nil
 	}

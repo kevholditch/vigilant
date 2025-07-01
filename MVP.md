@@ -15,8 +15,8 @@ Track progress implementing read-only UI features in the `vigilant` project for 
 ---
 
 ## 📦 Deployments (`apps/v1`)
-- [ ] List deployments
-- [ ] Describe deployment (replicas, strategy, selector)
+- [x] List deployments
+- [x] Describe deployment (replicas, strategy, selector)
 - [ ] Show rollout status
 - [ ] List underlying ReplicaSets
 - [ ] List related events
