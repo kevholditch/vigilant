@@ -29,28 +29,44 @@ func (h *HeaderView) SetSize(width int) {
 // Render renders the header view using the HeaderModel and viewText
 func (h *HeaderView) Render(model *models.HeaderModel, viewText string) string {
 	// --- Styles ---
-	barStyle := lipgloss.NewStyle().
-		Background(h.theme.BgSecondary).
-		Foreground(h.theme.TextPrimary).
-		Padding(0, 1)
-
 	separator := lipgloss.NewStyle().
 		Foreground(h.theme.TextMuted).
+		Background(h.theme.BgSecondary).
 		SetString(" | ").
 		String()
 
 	// --- Content ---
-	clusterInfo := fmt.Sprintf("☸️ %s", model.ClusterName)
-	controlPlaneInfo := fmt.Sprintf("🕹️ CP %d", model.ControlPlaneNodes)
-	workerInfo := fmt.Sprintf("👷 W %d", model.WorkerNodes)
-	k8sInfo := fmt.Sprintf("K8s: %s", model.KubernetesVersion)
+	clusterInfo := lipgloss.NewStyle().
+		Foreground(h.theme.TextMuted).
+		Background(h.theme.BgSecondary).
+		SetString(fmt.Sprintf("☸️ %s", model.ClusterName)).String()
 
-	// --- Assembly ---
+	k8sInfo := lipgloss.NewStyle().
+		Foreground(h.theme.TextPrimary).
+		Background(h.theme.BgSecondary).
+		SetString(fmt.Sprintf("K8s: %s", model.KubernetesVersion)).String()
+
+	controlPlaneInfo := lipgloss.NewStyle().
+		Foreground(h.theme.TextPrimary).
+		Background(h.theme.BgSecondary).
+		SetString(fmt.Sprintf("🕹️ CP %d", model.ControlPlaneNodes)).String()
+
+	workerInfo := lipgloss.NewStyle().
+		Foreground(h.theme.TextPrimary).
+		Background(h.theme.BgSecondary).
+		SetString(fmt.Sprintf("👷 W %d", model.WorkerNodes)).String()
+
+	viewTextStyled := lipgloss.NewStyle().
+		Foreground(h.theme.TextPrimary).
+		Background(h.theme.BgSecondary).
+		SetString(viewText).
+		String()
+
 	content := lipgloss.JoinHorizontal(
 		lipgloss.Bottom,
 		clusterInfo,
 		separator,
-		viewText,
+		viewTextStyled,
 		separator,
 		k8sInfo,
 		separator,
@@ -61,9 +77,12 @@ func (h *HeaderView) Render(model *models.HeaderModel, viewText string) string {
 
 	// --- Layout ---
 	bar := lipgloss.NewStyle().
+		Background(h.theme.BgSecondary).
+		Foreground(h.theme.TextPrimary).
 		Width(h.width).
 		Align(lipgloss.Center).
-		Render(barStyle.Render(content))
+		Padding(0, 1).
+		Render(content)
 
 	return bar
 }
