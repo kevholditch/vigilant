@@ -17,12 +17,17 @@ import (
 
 // App represents the main application
 type App struct {
-	clientset         *kubernetes.Clientset
-	width             int
-	height            int
-	theme             *theme.Theme
-	currentController controllers.Controller
-	headerController  *controllers.HeaderController
+	clientset            *kubernetes.Clientset
+	width                int
+	height               int
+	theme                *theme.Theme
+	currentController    controllers.Controller
+	headerController     *controllers.HeaderController
+	commandBarController *controllers.CommandBarController
+
+	// Available controllers
+	podController        *controllers.PodController
+	deploymentController *controllers.DeploymentController
 }
 
 // NewApp creates a new application instance
@@ -40,7 +45,7 @@ func NewApp() *App {
 		theme:     theme,
 	}
 
-	// Initialize the controller
+	// Initialize the controllers
 	app.initializeControllers()
 
 	return app
@@ -69,11 +74,37 @@ func newClientSet() (*kubernetes.Clientset, error) {
 
 // initializeControllers sets up the controllers
 func (a *App) initializeControllers() {
-	// Set up the pod controller that manages both list and describe views
-	a.currentController = controllers.NewPodController(a.clientset, a.theme, "") // Pass empty string for clusterName if needed
+	// Set up the pod controller (default view)
+	a.podController = controllers.NewPodController(a.clientset, a.theme, "")
+
+	// Set up the deployment controller
+	a.deploymentController = controllers.NewDeploymentController(a.clientset, a.theme, "")
+
+	// Set the default controller to pods
+	a.currentController = a.podController
 
 	// Set up the header controller
 	a.headerController = controllers.NewHeaderController(a.theme, a.clientset)
+
+	// Set up the command bar controller
+	availableResources := []string{"pods", "deployments"}
+	a.commandBarController = controllers.NewCommandBarController(a.clientset, a.theme, "", availableResources, a.handleViewSwitch)
+}
+
+// handleViewSwitch handles switching between different views
+func (a *App) handleViewSwitch(resource string) tea.Cmd {
+	return func() tea.Msg {
+		switch resource {
+		case "pods":
+			a.currentController = a.podController
+		case "deployments":
+			a.currentController = a.deploymentController
+		default:
+			// Unknown resource, keep current view
+			return nil
+		}
+		return nil
+	}
 }
 
 // tickMsg is sent periodically to check for updates
@@ -90,7 +121,7 @@ func tick() tea.Cmd {
 // Run starts the application
 func (a *App) Run() error {
 	fmt.Println("Starting Vigilant...")
-	fmt.Println("Press 'q' to quit, arrow keys to navigate, 'd' to describe pod")
+	fmt.Println("Press 'q' to quit, ':' to open command bar, arrow keys to navigate")
 
 	// Create the bubble tea program
 	p := tea.NewProgram(
@@ -116,7 +147,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return a, tea.Quit
+		case ":":
+			// Activate command bar
+			a.commandBarController.Activate()
+			return a, nil
 		default:
+			// Check if command bar is active first
+			if a.commandBarController.IsActive() {
+				return a, a.commandBarController.HandleKey(msg)
+			}
+
 			// Delegate to the current controller
 			if a.currentController != nil {
 				return a, a.currentController.HandleKey(msg)
@@ -137,7 +177,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if updateChan != nil {
 					// Force a re-render by calling Render
 					headerHeight := a.headerController.GetHeight()
-					a.currentController.Render(a.width, a.height-headerHeight)
+					commandBarHeight := a.getCommandBarHeight()
+					a.currentController.Render(a.width, a.height-headerHeight-commandBarHeight)
 				}
 			}
 		}
@@ -161,7 +202,13 @@ func (a *App) View() string {
 
 	header := a.headerController.Render(a.width, viewText)
 	headerHeight := a.headerController.GetHeight()
-	viewDisplayHeight := a.height - headerHeight
+
+	// Render command bar
+	commandBar := a.commandBarController.Render(a.width, 0)
+	commandBarHeight := a.getCommandBarHeight()
+
+	// Calculate available height for main content
+	viewDisplayHeight := a.height - headerHeight - commandBarHeight
 
 	var viewContent string
 	if a.currentController != nil {
@@ -170,5 +217,22 @@ func (a *App) View() string {
 		viewContent = "No controller available"
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, viewContent)
+	// Combine all components
+	var components []string
+	components = append(components, header)
+	if commandBar != "" {
+		components = append(components, commandBar)
+	}
+	components = append(components, viewContent)
+
+	return lipgloss.JoinVertical(lipgloss.Left, components...)
+}
+
+// getCommandBarHeight returns the height of the command bar
+func (a *App) getCommandBarHeight() int {
+	if a.commandBarController.IsActive() {
+		// Command bar takes up space when active
+		return 3 // Approximate height for command bar + suggestions
+	}
+	return 0
 }

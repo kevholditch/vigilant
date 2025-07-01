@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -133,6 +134,57 @@ func (cb *ClusterBuilder) WithPod(name, namespace string) *ClusterBuilder {
 	_, err := cb.clientset.CoreV1().Pods(namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
 	require.NoError(cb.t, err)
 	return cb
+}
+
+// WithDeployment creates a deployment with the given name and namespace
+func (cb *ClusterBuilder) WithDeployment(name, namespace string) *ClusterBuilder {
+	// Create namespace if it doesn't exist
+	cb.WithNamespace(namespace)
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    map[string]string{},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32Ptr(3),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": name,
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": name,
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "app",
+							Image: "nginx:latest",
+						},
+					},
+				},
+			},
+		},
+		Status: appsv1.DeploymentStatus{
+			Replicas:          3,
+			ReadyReplicas:     3,
+			AvailableReplicas: 3,
+			UpdatedReplicas:   3,
+		},
+	}
+	_, err := cb.clientset.AppsV1().Deployments(namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
+	require.NoError(cb.t, err)
+	return cb
+}
+
+// int32Ptr returns a pointer to an int32
+func int32Ptr(i int32) *int32 {
+	return &i
 }
 
 // Cleanup stops the envtest environment

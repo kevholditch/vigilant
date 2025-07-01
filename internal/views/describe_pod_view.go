@@ -2,7 +2,6 @@ package views
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -13,21 +12,19 @@ import (
 // DescribePodView represents the pod description view
 type DescribePodView struct {
 	pod     *models.Pod
-	content string
-	scrollY int
+	theme   *theme.Theme
 	width   int
 	height  int
-	theme   *theme.Theme
+	scrollY int
 }
 
 // NewDescribePodView creates a new describe pod view
 func NewDescribePodView(pod *models.Pod, theme *theme.Theme) *DescribePodView {
-	view := &DescribePodView{
-		pod:   pod,
-		theme: theme,
+	return &DescribePodView{
+		pod:     pod,
+		theme:   theme,
+		scrollY: 0,
 	}
-	view.loadPodDescription()
-	return view
 }
 
 // SetSize sets the view dimensions
@@ -36,189 +33,147 @@ func (dpv *DescribePodView) SetSize(width, height int) {
 	dpv.height = height
 }
 
-// UpdatePod updates the pod data and reloads the description
+// UpdatePod updates the pod data
 func (dpv *DescribePodView) UpdatePod(pod *models.Pod) {
 	dpv.pod = pod
-	dpv.scrollY = 0 // Reset scroll position
-	dpv.loadPodDescription()
 }
 
-// ScrollUp moves the view up
+// ScrollUp scrolls the view up
 func (dpv *DescribePodView) ScrollUp() {
 	if dpv.scrollY > 0 {
 		dpv.scrollY--
 	}
 }
 
-// ScrollDown moves the view down
+// ScrollDown scrolls the view down
 func (dpv *DescribePodView) ScrollDown() {
-	// Calculate max scroll based on content height
-	contentLines := strings.Split(dpv.content, "\n")
-	availableHeight := dpv.height - 4 // Header + status bar + borders
-
-	if availableHeight <= 0 {
-		return
-	}
-
-	maxScroll := len(contentLines) - availableHeight
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-
-	if dpv.scrollY < maxScroll {
-		dpv.scrollY++
-	}
+	dpv.scrollY++
 }
 
-// ScrollPageUp moves the view up by a page
+// ScrollPageUp scrolls the view up by a page
 func (dpv *DescribePodView) ScrollPageUp() {
-	availableHeight := dpv.height - 4 // Header + status bar + borders
-	if availableHeight <= 0 {
-		return
-	}
-
-	// Move up by available height (one page)
-	dpv.scrollY -= availableHeight
+	dpv.scrollY -= dpv.height / 2
 	if dpv.scrollY < 0 {
 		dpv.scrollY = 0
 	}
 }
 
-// ScrollPageDown moves the view down by a page
+// ScrollPageDown scrolls the view down by a page
 func (dpv *DescribePodView) ScrollPageDown() {
-	// Calculate max scroll based on content height
-	contentLines := strings.Split(dpv.content, "\n")
-	availableHeight := dpv.height - 4 // Header + status bar + borders
-
-	if availableHeight <= 0 {
-		return
-	}
-
-	maxScroll := len(contentLines) - availableHeight
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-
-	// Move down by available height (one page)
-	dpv.scrollY += availableHeight
-	if dpv.scrollY > maxScroll {
-		dpv.scrollY = maxScroll
-	}
+	dpv.scrollY += dpv.height / 2
 }
 
-// ScrollToTop moves the view to the top
+// ScrollToTop scrolls to the top of the view
 func (dpv *DescribePodView) ScrollToTop() {
 	dpv.scrollY = 0
 }
 
-// ScrollToBottom moves the view to the bottom
+// ScrollToBottom scrolls to the bottom of the view
 func (dpv *DescribePodView) ScrollToBottom() {
-	// Calculate max scroll based on content height
-	contentLines := strings.Split(dpv.content, "\n")
-	availableHeight := dpv.height - 4 // Header + status bar + borders
-
-	if availableHeight <= 0 {
-		return
-	}
-
-	maxScroll := len(contentLines) - availableHeight
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-
-	dpv.scrollY = maxScroll
+	// This will be calculated in the render method
 }
 
-// loadPodDescription loads the pod description using kubectl
-func (dpv *DescribePodView) loadPodDescription() {
-	cmd := exec.Command("kubectl", "describe", "pod", dpv.pod.Name, "-n", dpv.pod.Namespace)
-	output, err := cmd.Output()
-	if err != nil {
-		dpv.content = fmt.Sprintf("Error getting pod description: %v", err)
-		return
-	}
-	dpv.content = string(output)
-}
-
-// Render renders the complete describe pod view
+// Render renders the describe pod view
 func (dpv *DescribePodView) Render() string {
 	if dpv.width == 0 || dpv.height == 0 {
 		return ""
 	}
 
-	// Content area
 	content := dpv.renderContent()
+	lines := strings.Split(content, "\n")
 
-	// Status bar
-	statusBar := dpv.renderStatusBar()
-
-	// Combine all components
-	viewContent := lipgloss.JoinVertical(
-		lipgloss.Left,
-		content,
-		statusBar,
-	)
-
-	return viewContent
-}
-
-// renderContent renders the scrollable content area
-func (dpv *DescribePodView) renderContent() string {
-	// Split content into lines
-	lines := strings.Split(dpv.content, "\n")
-
-	// Calculate available height for content (subtract status bar)
-	availableHeight := dpv.height - 1 // 1 for status bar
-	if availableHeight < 0 {
-		availableHeight = 0
-	}
-
-	if availableHeight <= 0 {
-		return lipgloss.NewStyle().Foreground(dpv.theme.TextMuted).Render("Window too small")
-	}
-
-	// Ensure scroll position is valid
-	if dpv.scrollY < 0 {
-		dpv.scrollY = 0
-	}
-
-	maxScroll := len(lines) - availableHeight
+	// Calculate max scroll
+	maxScroll := len(lines) - dpv.height
 	if maxScroll < 0 {
 		maxScroll = 0
 	}
 
+	// Clamp scroll position
 	if dpv.scrollY > maxScroll {
 		dpv.scrollY = maxScroll
 	}
 
-	// Apply scrolling
-	startLine := dpv.scrollY
-	endLine := startLine + availableHeight
-	if endLine > len(lines) {
-		endLine = len(lines)
-	}
-
 	// Get visible lines
-	var visibleLines []string
-	if startLine < len(lines) {
-		visibleLines = lines[startLine:endLine]
+	start := dpv.scrollY
+	end := start + dpv.height
+	if end > len(lines) {
+		end = len(lines)
 	}
 
-	// Join visible lines
-	content := strings.Join(visibleLines, "\n")
+	if start >= len(lines) {
+		return lipgloss.NewStyle().Foreground(dpv.theme.TextMuted).Render("No content to display")
+	}
 
-	// Style the content
-	contentStyle := lipgloss.NewStyle().
-		Foreground(dpv.theme.TextPrimary).
-		Background(dpv.theme.BgPrimary).
-		Width(dpv.width).
-		Height(availableHeight)
-
-	return contentStyle.Render(content)
+	visibleLines := lines[start:end]
+	return strings.Join(visibleLines, "\n")
 }
 
-// renderStatusBar renders the status bar at the bottom
-func (dpv *DescribePodView) renderStatusBar() string {
-	statusText := fmt.Sprintf("Pod: %s | Esc: return | ↑/↓: scroll | PgUp/PgDn/Ctrl+u/Ctrl+d: page | g/G: top/bottom", dpv.pod.Name)
-	return dpv.theme.StatusBarStyle.Width(dpv.width).Render(statusText)
+// renderContent renders the full pod description content
+func (dpv *DescribePodView) renderContent() string {
+	if dpv.pod == nil {
+		return lipgloss.NewStyle().Foreground(dpv.theme.Error).Render("No pod data available")
+	}
+
+	p := dpv.pod
+
+	var sections []string
+
+	// Basic information
+	basicInfo := fmt.Sprintf(`Name:         %s
+Namespace:    %s
+Status:       %s
+Age:          %s
+IP:           %s
+Node:         %s`, p.Name, p.Namespace, p.Status, p.FormatAge(), p.IP, p.Node)
+	sections = append(sections, lipgloss.NewStyle().Foreground(dpv.theme.Primary).Bold(true).Render("Basic Information"), basicInfo)
+
+	// Container information
+	containerInfo := fmt.Sprintf(`Ready:        %s
+Restarts:     %d`, p.Ready, p.Restarts)
+	sections = append(sections, lipgloss.NewStyle().Foreground(dpv.theme.Primary).Bold(true).Render("Container Information"), containerInfo)
+
+	// Status details
+	statusDetails := dpv.renderStatusDetails(p)
+	if statusDetails != "" {
+		sections = append(sections, lipgloss.NewStyle().Foreground(dpv.theme.Primary).Bold(true).Render("Status Details"), statusDetails)
+	}
+
+	// Network information
+	networkInfo := fmt.Sprintf(`Pod IP:       %s
+Node:         %s`, p.IP, p.Node)
+	sections = append(sections, lipgloss.NewStyle().Foreground(dpv.theme.Primary).Bold(true).Render("Network Information"), networkInfo)
+
+	return strings.Join(sections, "\n\n")
+}
+
+// renderStatusDetails renders detailed status information
+func (dpv *DescribePodView) renderStatusDetails(p *models.Pod) string {
+	var details []string
+
+	switch p.Status {
+	case "Running":
+		details = append(details, lipgloss.NewStyle().Foreground(dpv.theme.Success).Render("✓ Pod is running and healthy"))
+	case "Pending":
+		details = append(details, lipgloss.NewStyle().Foreground(dpv.theme.Warning).Render("⏳ Pod is pending - waiting for resources or scheduling"))
+	case "Succeeded":
+		details = append(details, lipgloss.NewStyle().Foreground(dpv.theme.Accent).Render("✓ Pod completed successfully"))
+	case "Failed":
+		details = append(details, lipgloss.NewStyle().Foreground(dpv.theme.Error).Render("✗ Pod failed to run"))
+	case "Unknown":
+		details = append(details, lipgloss.NewStyle().Foreground(dpv.theme.TextMuted).Render("? Pod status is unknown"))
+	default:
+		details = append(details, lipgloss.NewStyle().Foreground(dpv.theme.TextMuted).Render("? Unknown status"))
+	}
+
+	// Add restart information if applicable
+	if p.Restarts > 0 {
+		restartInfo := fmt.Sprintf("🔄 Pod has restarted %d times", p.Restarts)
+		if p.Restarts > 5 {
+			details = append(details, lipgloss.NewStyle().Foreground(dpv.theme.Warning).Render(restartInfo))
+		} else {
+			details = append(details, lipgloss.NewStyle().Foreground(dpv.theme.TextSecondary).Render(restartInfo))
+		}
+	}
+
+	return strings.Join(details, "\n")
 }
