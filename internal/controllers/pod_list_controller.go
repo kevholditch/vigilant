@@ -4,11 +4,11 @@ import (
 	"context"
 	"log"
 	"os"
-	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/kevholditch/vigilant/internal/models"
 	"github.com/kevholditch/vigilant/internal/theme"
+	"github.com/kevholditch/vigilant/internal/utils"
 	"github.com/kevholditch/vigilant/internal/views"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,8 +44,7 @@ type PodListController struct {
 	height        int
 
 	// Watch-related fields
-	pods            map[string]models.Pod // key: namespace/name
-	podsMutex       sync.RWMutex
+	pods            *utils.OrderedMap[models.Pod] // ordered collection of pods
 	watchStarted    bool
 	resourceVersion string // <--- store resource version here
 	needsUpdate     bool   // Flag to indicate if view needs updating
@@ -66,7 +65,7 @@ func NewPodListController(clientset *kubernetes.Clientset, theme *theme.Theme, c
 		clientset:     clientset,
 		theme:         theme,
 		clusterName:   clusterName,
-		pods:          make(map[string]models.Pod),
+		pods:          utils.NewOrderedMap[models.Pod](),
 		updateChan:    make(chan tea.Msg),
 		ctx:           ctx,
 		cancel:        cancel,
@@ -93,13 +92,15 @@ func (c *PodListController) initializePods() {
 		return
 	}
 
-	c.podsMutex.Lock()
-	defer c.podsMutex.Unlock()
+	// Clear existing data
+	c.pods.Clear()
 
+	// Add pods in a consistent order (sorted by namespace, then name)
 	for _, k8sPod := range podList.Items {
 		key := k8sPod.Namespace + "/" + k8sPod.Name
-		c.pods[key] = models.ToPodModel(k8sPod)
+		c.pods.Set(key, models.ToPodModel(k8sPod))
 	}
+
 	c.resourceVersion = podList.ResourceVersion // <--- store resource version
 }
 
@@ -147,20 +148,18 @@ func (c *PodListController) watchPods() {
 
 			key := pod.Namespace + "/" + pod.Name
 
-			c.podsMutex.Lock()
 			switch event.Type {
 			case watch.Added:
-				c.pods[key] = models.ToPodModel(*pod)
+				c.pods.Set(key, models.ToPodModel(*pod))
 				debugLogger.Printf("Pod added: %s", key)
 			case watch.Modified:
-				c.pods[key] = models.ToPodModel(*pod)
+				c.pods.Set(key, models.ToPodModel(*pod))
 				debugLogger.Printf("Pod modified: %s", key)
 			case watch.Deleted:
-				delete(c.pods, key)
+				c.pods.Delete(key)
 				debugLogger.Printf("Pod deleted: %s", key)
 			}
 			c.needsUpdate = true
-			c.podsMutex.Unlock()
 
 			// Send update message to trigger re-render
 			SendUpdate(c.updateChan)
@@ -172,7 +171,7 @@ func (c *PodListController) watchPods() {
 // updateView updates the pod list view with current pods
 func (c *PodListController) updateView() {
 	pods := c.getPodsList()
-	debugLogger.Printf("[updateView] Controller pod map count: %d", len(c.pods))
+	debugLogger.Printf("[updateView] Controller pod map count: %d", c.pods.Len())
 	if len(pods) > 0 {
 		debugLogger.Printf("[updateView] First 3 pods in controller: %v", podNamesPreview(pods, 3))
 	}
@@ -183,13 +182,9 @@ func (c *PodListController) updateView() {
 	}
 }
 
-// getPodsList returns the current pods as a slice
+// getPodsList returns the current pods as a slice in consistent order
 func (c *PodListController) getPodsList() []models.Pod {
-	pods := make([]models.Pod, 0, len(c.pods))
-	for _, pod := range c.pods {
-		pods = append(pods, pod)
-	}
-	return pods
+	return c.pods.Values()
 }
 
 // HandleKey handles key press events for the pod list view
@@ -227,13 +222,11 @@ func (c *PodListController) Render(width, height int) string {
 	debugLogger.Printf("[Render] Called. needsUpdate: %v", c.needsUpdate)
 
 	// Always update the view if needed, regardless of needsUpdate flag
-	c.podsMutex.Lock()
 	if c.needsUpdate {
 		debugLogger.Printf("[Render] needsUpdate is true, calling updateView")
 		c.updateView()
 		c.needsUpdate = false
 	}
-	c.podsMutex.Unlock()
 
 	return c.podView.Render()
 }
@@ -244,17 +237,13 @@ func (c *PodListController) refreshPods() tea.Cmd {
 		debugLogger.Printf("Refreshing pods")
 
 		// Clear current pods
-		c.podsMutex.Lock()
-		c.pods = make(map[string]models.Pod)
-		c.podsMutex.Unlock()
+		c.pods.Clear()
 
 		// Reinitialize pods
 		c.initializePods()
 
 		// Mark that we need to update the view
-		c.podsMutex.Lock()
 		c.needsUpdate = true
-		c.podsMutex.Unlock()
 
 		return nil
 	}
@@ -262,8 +251,6 @@ func (c *PodListController) refreshPods() tea.Cmd {
 
 // GetPods returns the current pods (for testing)
 func (c *PodListController) GetPods() []models.Pod {
-	c.podsMutex.RLock()
-	defer c.podsMutex.RUnlock()
 	return c.getPodsList()
 }
 
