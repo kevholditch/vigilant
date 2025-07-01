@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"log"
+	"os"
 	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,6 +15,19 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 )
+
+var debugLogger *log.Logger
+
+func init() {
+	// Create debug log file
+	debugFile, err := os.OpenFile("vigilant-debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		// Fallback to stderr if file creation fails
+		debugLogger = log.New(os.Stderr, "[DEBUG] ", log.LstdFlags)
+	} else {
+		debugLogger = log.New(debugFile, "[DEBUG] ", log.LstdFlags)
+	}
+}
 
 // PodListController handles input for the pod list view
 type PodListController struct {
@@ -68,7 +82,7 @@ func NewPodListController(clientset *kubernetes.Clientset, theme *theme.Theme, c
 func (c *PodListController) initializePods() {
 	podList, err := c.clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		log.Printf("error getting initial pods: %v", err)
+		debugLogger.Printf("error getting initial pods: %v", err)
 		return
 	}
 
@@ -101,26 +115,26 @@ func (c *PodListController) watchPods() {
 		ResourceVersion: c.resourceVersion,
 	})
 	if err != nil {
-		log.Printf("error starting pod watch: %v", err)
+		debugLogger.Printf("error starting pod watch: %v", err)
 		return
 	}
 	defer watcher.Stop()
 
-	log.Printf("Started watching pods from resource version: %s", c.resourceVersion)
+	debugLogger.Printf("Started watching pods from resource version: %s", c.resourceVersion)
 
 	for {
 		select {
 		case <-c.ctx.Done():
-			log.Printf("Pod watch stopped by context cancellation")
+			debugLogger.Printf("Pod watch stopped by context cancellation")
 			return
 		case event, ok := <-watcher.ResultChan():
 			if !ok {
-				log.Printf("Pod watch channel closed")
+				debugLogger.Printf("Pod watch channel closed")
 				return
 			}
 			pod, ok := event.Object.(*corev1.Pod)
 			if !ok {
-				log.Printf("unexpected object type in watch event: %T", event.Object)
+				debugLogger.Printf("unexpected object type in watch event: %T", event.Object)
 				continue
 			}
 
@@ -130,13 +144,13 @@ func (c *PodListController) watchPods() {
 			switch event.Type {
 			case watch.Added:
 				c.pods[key] = models.ToPodModel(*pod)
-				log.Printf("Pod added: %s", key)
+				debugLogger.Printf("Pod added: %s", key)
 			case watch.Modified:
 				c.pods[key] = models.ToPodModel(*pod)
-				log.Printf("Pod modified: %s", key)
+				debugLogger.Printf("Pod modified: %s", key)
 			case watch.Deleted:
 				delete(c.pods, key)
-				log.Printf("Pod deleted: %s", key)
+				debugLogger.Printf("Pod deleted: %s", key)
 			}
 			c.needsUpdate = true
 			c.podsMutex.Unlock()
@@ -147,7 +161,15 @@ func (c *PodListController) watchPods() {
 // updateView updates the pod list view with current pods
 func (c *PodListController) updateView() {
 	pods := c.getPodsList()
+	debugLogger.Printf("[updateView] Controller pod map count: %d", len(c.pods))
+	if len(pods) > 0 {
+		debugLogger.Printf("[updateView] First 3 pods in controller: %v", podNamesPreview(pods, 3))
+	}
 	c.podView.UpdatePods(pods)
+	debugLogger.Printf("[updateView] View pod count after update: %d", len(c.podView.Pods()))
+	if len(c.podView.Pods()) > 0 {
+		debugLogger.Printf("[updateView] First 3 pods in view: %v", podNamesPreview(c.podView.Pods(), 3))
+	}
 }
 
 // getPodsList returns the current pods as a slice
@@ -191,9 +213,11 @@ func (c *PodListController) Render(width, height int) string {
 	c.height = height
 	c.podView.SetSize(width, height)
 
-	// Check if we need to update the view
+	debugLogger.Printf("[Render] Called. needsUpdate: %v", c.needsUpdate)
+
 	c.podsMutex.Lock()
 	if c.needsUpdate {
+		debugLogger.Printf("[Render] needsUpdate is true, calling updateView")
 		c.updateView()
 		c.needsUpdate = false
 	}
@@ -205,7 +229,7 @@ func (c *PodListController) Render(width, height int) string {
 // refreshPods refreshes the pods data by reinitializing and restarting watch
 func (c *PodListController) refreshPods() tea.Cmd {
 	return func() tea.Msg {
-		log.Printf("Refreshing pods")
+		debugLogger.Printf("Refreshing pods")
 
 		// Clear current pods
 		c.podsMutex.Lock()
@@ -236,4 +260,16 @@ func (c *PodListController) Stop() {
 	if c.cancel != nil {
 		c.cancel()
 	}
+}
+
+// podNamesPreview returns a preview of pod names for logging
+func podNamesPreview(pods []models.Pod, max int) []string {
+	var names []string
+	for i, pod := range pods {
+		if i >= max {
+			break
+		}
+		names = append(names, pod.Namespace+"/"+pod.Name)
+	}
+	return names
 }

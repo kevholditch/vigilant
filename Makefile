@@ -104,4 +104,57 @@ GOBIN=$(LOCALBIN) go install $${package} ;\
 mv $(1) $(1)-$(3) ;\
 } ;\
 ln -sf $(1)-$(3) $(1)
-endef 
+endef
+
+# Download and install a specific version of envtest binaries
+# Usage: make download-envtest VERSION=1.29.0 PLATFORM=darwin-arm64
+download-envtest:
+	@if [ -z "$(VERSION)" ] || [ -z "$(PLATFORM)" ]; then \
+		echo "Usage: make download-envtest VERSION=<version> PLATFORM=<platform>"; \
+		echo "Example: make download-envtest VERSION=1.29.0 PLATFORM=darwin-arm64"; \
+		exit 1; \
+	fi
+	@mkdir -p bin/k8s/$(VERSION)-$(PLATFORM)
+	@echo "Downloading envtest binaries for $(VERSION) on $(PLATFORM)..."
+	@curl -L https://github.com/kubernetes-sigs/kubebuilder/releases/download/v$(VERSION)/kubebuilder_$(VERSION)_$(PLATFORM).tar.gz | tar -xz -C bin/k8s/$(VERSION)-$(PLATFORM) --strip-components=1
+	@echo "Creating symlink..."
+	@ln -sf $(VERSION)-$(PLATFORM) bin/k8s/latest
+	@echo "Envtest binaries downloaded and symlinked to bin/k8s/latest"
+
+# Download and install the latest envtest binaries for the current platform
+download-envtest-latest:
+	@echo "Detecting platform..."
+	@PLATFORM=$$(case "$$(uname -s)" in \
+		Darwin) \
+			case "$$(uname -m)" in \
+				arm64) echo "darwin-arm64" ;; \
+				x86_64) echo "darwin-amd64" ;; \
+				*) echo "darwin-amd64" ;; \
+			esac ;; \
+		Linux) \
+			case "$$(uname -m)" in \
+				x86_64) echo "linux-amd64" ;; \
+				arm64) echo "linux-arm64" ;; \
+				*) echo "linux-amd64" ;; \
+			esac ;; \
+		*) echo "linux-amd64" ;; \
+	esac); \
+	VERSION=$$(curl -s https://api.github.com/repos/kubernetes-sigs/kubebuilder/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | sed 's/v//'); \
+	echo "Latest version: $$VERSION"; \
+	echo "Platform: $$PLATFORM"; \
+	$(MAKE) download-envtest VERSION=$$VERSION PLATFORM=$$PLATFORM
+
+# Define a function to create symlinks
+define create-symlink
+	@if [ -d "bin/k8s/$(1)-$(2)" ]; then \
+		echo "Creating symlink for $(1)-$(2)"; \
+		ln -sf $(1)-$(2) bin/k8s/$(1); \
+	else \
+		echo "Directory bin/k8s/$(1)-$(2) does not exist"; \
+		exit 1; \
+	fi
+endef
+
+# Create symlinks for specific versions
+symlink-1.33.0:
+	$(call create-symlink,1.33.0,darwin-arm64) 
