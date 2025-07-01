@@ -58,6 +58,18 @@ func (c *DescribePodController) HandleKey(msg tea.KeyMsg) tea.Cmd {
 	case "down", "j":
 		c.describePodView.ScrollDown()
 		return nil
+	case "pgup", "ctrl+u":
+		c.describePodView.ScrollPageUp()
+		return nil
+	case "pgdown", "ctrl+d":
+		c.describePodView.ScrollPageDown()
+		return nil
+	case "g":
+		c.describePodView.ScrollToTop()
+		return nil
+	case "G":
+		c.describePodView.ScrollToBottom()
+		return nil
 	case "esc":
 		return c.onBack()
 	case "r":

@@ -70,6 +70,65 @@ func (dpv *DescribePodView) ScrollDown() {
 	}
 }
 
+// ScrollPageUp moves the view up by a page
+func (dpv *DescribePodView) ScrollPageUp() {
+	availableHeight := dpv.height - 4 // Header + status bar + borders
+	if availableHeight <= 0 {
+		return
+	}
+
+	// Move up by available height (one page)
+	dpv.scrollY -= availableHeight
+	if dpv.scrollY < 0 {
+		dpv.scrollY = 0
+	}
+}
+
+// ScrollPageDown moves the view down by a page
+func (dpv *DescribePodView) ScrollPageDown() {
+	// Calculate max scroll based on content height
+	contentLines := strings.Split(dpv.content, "\n")
+	availableHeight := dpv.height - 4 // Header + status bar + borders
+
+	if availableHeight <= 0 {
+		return
+	}
+
+	maxScroll := len(contentLines) - availableHeight
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+
+	// Move down by available height (one page)
+	dpv.scrollY += availableHeight
+	if dpv.scrollY > maxScroll {
+		dpv.scrollY = maxScroll
+	}
+}
+
+// ScrollToTop moves the view to the top
+func (dpv *DescribePodView) ScrollToTop() {
+	dpv.scrollY = 0
+}
+
+// ScrollToBottom moves the view to the bottom
+func (dpv *DescribePodView) ScrollToBottom() {
+	// Calculate max scroll based on content height
+	contentLines := strings.Split(dpv.content, "\n")
+	availableHeight := dpv.height - 4 // Header + status bar + borders
+
+	if availableHeight <= 0 {
+		return
+	}
+
+	maxScroll := len(contentLines) - availableHeight
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+
+	dpv.scrollY = maxScroll
+}
+
 // loadPodDescription loads the pod description using kubectl
 func (dpv *DescribePodView) loadPodDescription() {
 	cmd := exec.Command("kubectl", "describe", "pod", dpv.pod.Name, "-n", dpv.pod.Namespace)
@@ -160,6 +219,6 @@ func (dpv *DescribePodView) renderContent() string {
 
 // renderStatusBar renders the status bar at the bottom
 func (dpv *DescribePodView) renderStatusBar() string {
-	statusText := fmt.Sprintf("Pod: %s | Press 'Esc' to return | Use ↑/↓ to scroll", dpv.pod.Name)
+	statusText := fmt.Sprintf("Pod: %s | Esc: return | ↑/↓: scroll | PgUp/PgDn/Ctrl+u/Ctrl+d: page | g/G: top/bottom", dpv.pod.Name)
 	return dpv.theme.StatusBarStyle.Width(dpv.width).Render(statusText)
 }
