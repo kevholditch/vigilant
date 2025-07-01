@@ -31,6 +31,7 @@ type PodListController struct {
 	podsMutex       sync.RWMutex
 	watchStarted    bool
 	resourceVersion string // <--- store resource version here
+	needsUpdate     bool   // Flag to indicate if view needs updating
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -137,26 +138,21 @@ func (c *PodListController) watchPods() {
 				delete(c.pods, key)
 				log.Printf("Pod deleted: %s", key)
 			}
+			c.needsUpdate = true
 			c.podsMutex.Unlock()
-
-			// Update the view with new pod list
-			c.updateView()
 		}
 	}
 }
 
 // updateView updates the pod list view with current pods
 func (c *PodListController) updateView() {
-	c.podsMutex.RLock()
 	pods := c.getPodsList()
-	c.podsMutex.RUnlock()
-
 	c.podView.UpdatePods(pods)
 }
 
 // getPodsList returns the current pods as a slice
 func (c *PodListController) getPodsList() []models.Pod {
-	var pods []models.Pod
+	pods := make([]models.Pod, 0, len(c.pods))
 	for _, pod := range c.pods {
 		pods = append(pods, pod)
 	}
@@ -194,6 +190,15 @@ func (c *PodListController) Render(width, height int) string {
 	c.width = width
 	c.height = height
 	c.podView.SetSize(width, height)
+
+	// Check if we need to update the view
+	c.podsMutex.Lock()
+	if c.needsUpdate {
+		c.updateView()
+		c.needsUpdate = false
+	}
+	c.podsMutex.Unlock()
+
 	return c.podView.Render()
 }
 
@@ -210,8 +215,10 @@ func (c *PodListController) refreshPods() tea.Cmd {
 		// Reinitialize pods
 		c.initializePods()
 
-		// Update view
-		c.updateView()
+		// Mark that we need to update the view
+		c.podsMutex.Lock()
+		c.needsUpdate = true
+		c.podsMutex.Unlock()
 
 		return nil
 	}
