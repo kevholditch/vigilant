@@ -88,6 +88,12 @@ func (a *App) buildRegistry() {
 	a.controllerRegistry.Register("deployments", func(clientset *kubernetes.Clientset, theme *controllers.Theme) controllers.Controller {
 		return controllers.NewDeploymentController(clientset, theme, "")
 	})
+	a.controllerRegistry.Register("replicasets", func(clientset *kubernetes.Clientset, theme *controllers.Theme) controllers.Controller {
+		return controllers.NewReplicaSetController(clientset, theme, "")
+	})
+	a.controllerRegistry.Register("statefulsets", func(clientset *kubernetes.Clientset, theme *controllers.Theme) controllers.Controller {
+		return controllers.NewStatefulSetController(clientset, theme, "")
+	})
 }
 
 // handleViewSwitch handles switching between different views

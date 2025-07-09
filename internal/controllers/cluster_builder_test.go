@@ -182,6 +182,97 @@ func (cb *ClusterBuilder) WithDeployment(name, namespace string) *ClusterBuilder
 	return cb
 }
 
+// WithReplicaSet creates a ReplicaSet with the given name and namespace
+func (cb *ClusterBuilder) WithReplicaSet(name, namespace string) *ClusterBuilder {
+	// Create namespace if it doesn't exist
+	cb.WithNamespace(namespace)
+
+	replicaset := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    map[string]string{},
+		},
+		Spec: appsv1.ReplicaSetSpec{
+			Replicas: int32Ptr(3),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": name,
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": name,
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "app",
+							Image: "nginx:latest",
+						},
+					},
+				},
+			},
+		},
+		Status: appsv1.ReplicaSetStatus{
+			Replicas:          3,
+			ReadyReplicas:     3,
+			AvailableReplicas: 3,
+		},
+	}
+	_, err := cb.clientset.AppsV1().ReplicaSets(namespace).Create(context.TODO(), replicaset, metav1.CreateOptions{})
+	require.NoError(cb.t, err)
+	return cb
+}
+
+// WithStatefulSet creates a StatefulSet with the given name and namespace
+func (cb *ClusterBuilder) WithStatefulSet(name, namespace string) *ClusterBuilder {
+	// Create namespace if it doesn't exist
+	cb.WithNamespace(namespace)
+
+	statefulset := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    map[string]string{},
+		},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas: int32Ptr(3),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": name,
+				},
+			},
+			ServiceName: name + "-svc",
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": name,
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "app",
+							Image: "nginx:latest",
+						},
+					},
+				},
+			},
+		},
+		Status: appsv1.StatefulSetStatus{
+			Replicas:        3,
+			ReadyReplicas:   3,
+			CurrentReplicas: 3,
+		},
+	}
+	_, err := cb.clientset.AppsV1().StatefulSets(namespace).Create(context.TODO(), statefulset, metav1.CreateOptions{})
+	require.NoError(cb.t, err)
+	return cb
+}
+
 // int32Ptr returns a pointer to an int32
 func int32Ptr(i int32) *int32 {
 	return &i
