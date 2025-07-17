@@ -17,14 +17,15 @@ import (
 
 // App represents the main application
 type App struct {
-	clientset            *kubernetes.Clientset
-	width                int
-	height               int
-	theme                *theme.Theme
-	currentController    controllers.Controller
-	headerController     *controllers.HeaderController
-	commandBarController *controllers.CommandBarController
-	controllerRegistry   *controllers.ControllerRegistry
+	clientset             *kubernetes.Clientset
+	width                 int
+	height                int
+	theme                 *theme.Theme
+	currentController     controllers.Controller
+	headerController      *controllers.HeaderController
+	commandBarController  *controllers.CommandBarController
+	helpOverlayController *controllers.HelpOverlayController
+	controllerRegistry    *controllers.ControllerRegistry
 }
 
 // NewApp creates a new application instance
@@ -78,6 +79,7 @@ func (a *App) initializeControllers() {
 	a.headerController = controllers.NewHeaderController(a.theme, a.clientset)
 	availableResources := a.controllerRegistry.GetAvailableResources()
 	a.commandBarController = controllers.NewCommandBarController(a.clientset, a.theme, "", availableResources, a.handleViewSwitch)
+	a.helpOverlayController = controllers.NewHelpOverlayController(a.theme)
 }
 
 func (a *App) buildRegistry() {
@@ -120,7 +122,7 @@ func tick() tea.Cmd {
 // Run starts the application
 func (a *App) Run() error {
 	fmt.Println("Starting Vigilant...")
-	fmt.Println("Press 'q' to quit, ':' to open command bar, arrow keys to navigate")
+	fmt.Println("Press 'q' to quit, 'h' for help, ':' to open command bar, arrow keys to navigate")
 
 	// Create the bubble tea program
 	p := tea.NewProgram(
@@ -146,12 +148,22 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return a, tea.Quit
+		case "h":
+			// Activate help overlay and set current controller
+			a.helpOverlayController.SetCurrentController(a.currentController)
+			a.helpOverlayController.Activate()
+			return a, nil
 		case ":":
 			// Activate command bar
 			a.commandBarController.Activate()
 			return a, nil
 		default:
-			// Check if command bar is active first
+			// Check if help overlay is active first
+			if a.helpOverlayController.IsActive() {
+				return a, a.helpOverlayController.HandleKey(msg)
+			}
+
+			// Check if command bar is active next
 			if a.commandBarController.IsActive() {
 				return a, a.commandBarController.HandleKey(msg)
 			}
@@ -224,7 +236,16 @@ func (a *App) View() string {
 	}
 	components = append(components, viewContent)
 
-	return lipgloss.JoinVertical(lipgloss.Left, components...)
+	mainView := lipgloss.JoinVertical(lipgloss.Left, components...)
+
+	// Check if help overlay is active
+	if a.helpOverlayController.IsActive() {
+		// Render help overlay on top
+		helpOverlay := a.helpOverlayController.Render(a.width, a.height)
+		return helpOverlay
+	}
+
+	return mainView
 }
 
 // getCommandBarHeight returns the height of the command bar

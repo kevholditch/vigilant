@@ -144,3 +144,22 @@ func (pc *PodController) GetUpdateChannel() <-chan tea.Msg {
 	// Return nil channel if no updateable controller is active
 	return nil
 }
+
+// GetKeyBindings returns the key bindings for the current view
+func (pc *PodController) GetKeyBindings() []KeyBinding {
+	if pc.isShowingList {
+		return []KeyBinding{
+			{Key: "d", Description: "Describe selected pod"},
+			{Key: "l", Description: "View pod logs"},
+		}
+	} else if pc.describeCtrl != nil {
+		return []KeyBinding{
+			{Key: "↑/↓ or j/k", Description: "Scroll through pod description"},
+		}
+	} else if pc.logCtrl != nil {
+		return []KeyBinding{
+			{Key: "↑/↓ or j/k", Description: "Scroll through pod logs"},
+		}
+	}
+	return []KeyBinding{}
+}

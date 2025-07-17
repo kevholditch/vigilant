@@ -51,14 +51,34 @@ make run
 
 ### Controls
 
-#### Pod List View
+#### General Navigation
 - `q` - Quit the application
-- `↑/↓` or `j/k` - Navigate through pods
+- `h` - Show context-aware help overlay
+- `:` - Open command bar to switch between resources
+- `↑/↓` or `j/k` - Navigate through items
+- `Esc` - Close help overlay or go back
+
+#### Pod List View
 - `d` - Describe selected pod (opens pod description view)
+- `l` - View pod logs
 
 #### Pod Description View
-- `Esc` - Return to pod list view
 - `↑/↓` or `j/k` - Scroll through pod description
+
+#### Deployment List View
+- `d` - Describe selected deployment
+
+#### ReplicaSet List View
+- `d` - Describe selected replicaset
+
+#### StatefulSet List View
+- `d` - Describe selected statefulset
+
+#### Command Bar
+- `Enter` - Execute command
+- `Tab` - Cycle through suggestions
+- `↑/↓` - Navigate suggestions
+- `Ctrl+C` - Cancel command
 
 ## Development
 

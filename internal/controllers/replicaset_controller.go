@@ -109,3 +109,17 @@ func (rc *ReplicaSetController) GetUpdateChannel() <-chan tea.Msg {
 	}
 	return nil
 }
+
+// GetKeyBindings returns the key bindings for the current view
+func (rc *ReplicaSetController) GetKeyBindings() []KeyBinding {
+	if rc.isShowingList {
+		return []KeyBinding{
+			{Key: "d", Description: "Describe selected replicaset"},
+		}
+	} else if rc.describeCtrl != nil {
+		return []KeyBinding{
+			{Key: "↑/↓ or j/k", Description: "Scroll through replicaset description"},
+		}
+	}
+	return []KeyBinding{}
+}

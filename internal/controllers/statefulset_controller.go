@@ -109,3 +109,17 @@ func (sc *StatefulSetController) GetUpdateChannel() <-chan tea.Msg {
 	}
 	return nil
 }
+
+// GetKeyBindings returns the key bindings for the current view
+func (sc *StatefulSetController) GetKeyBindings() []KeyBinding {
+	if sc.isShowingList {
+		return []KeyBinding{
+			{Key: "d", Description: "Describe selected statefulset"},
+		}
+	} else if sc.describeCtrl != nil {
+		return []KeyBinding{
+			{Key: "↑/↓ or j/k", Description: "Scroll through statefulset description"},
+		}
+	}
+	return []KeyBinding{}
+}
