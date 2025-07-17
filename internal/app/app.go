@@ -231,9 +231,7 @@ func (a *App) View() string {
 	// Combine all components
 	var components []string
 	components = append(components, header)
-	if commandBar != "" {
-		components = append(components, commandBar)
-	}
+	components = append(components, commandBar) // Always include command bar
 	components = append(components, viewContent)
 
 	mainView := lipgloss.JoinVertical(lipgloss.Left, components...)
@@ -250,9 +248,13 @@ func (a *App) View() string {
 
 // getCommandBarHeight returns the height of the command bar
 func (a *App) getCommandBarHeight() int {
+	// Command bar is always present now
+	baseHeight := 1 // Base height for the command bar itself
+
+	// Add height for suggestions if command bar is active
 	if a.commandBarController.IsActive() {
-		// Command bar takes up space when active
-		return 3 // Approximate height for command bar + suggestions
+		baseHeight += 2 // Approximate height for suggestions
 	}
-	return 0
+
+	return baseHeight
 }

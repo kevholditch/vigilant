@@ -187,16 +187,21 @@ func (cbv *CommandBarView) updateSuggestions() {
 
 // Render renders the command bar view
 func (cbv *CommandBarView) Render() string {
-	if !cbv.isActive {
-		return ""
+	// Border color: lighter when inactive, brighter when active
+	borderColor := lipgloss.Color("42") // Light green by default
+	if cbv.isActive {
+		borderColor = cbv.theme.Primary // Use theme's primary color for active
 	}
 
-	// Command bar background
 	barStyle := lipgloss.NewStyle().
 		Background(cbv.theme.BgSecondary).
 		Foreground(cbv.theme.TextPrimary).
 		Padding(0, 1).
 		Width(cbv.width)
+
+	bordered := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(borderColor)
 
 	// Prompt
 	prompt := ":"
@@ -207,29 +212,49 @@ func (cbv *CommandBarView) Render() string {
 	// Input area
 	inputStyle := lipgloss.NewStyle().
 		Foreground(cbv.theme.TextPrimary).
-		Background(cbv.theme.BgPrimary).
-		Padding(0, 1)
+		Background(cbv.theme.BgPrimary)
 
-	// Create the input display with cursor
+	// Get the best suggestion for autocomplete display
+	bestSuggestion := ""
+	if len(cbv.suggestions) > 0 {
+		bestSuggestion = cbv.suggestions[cbv.selectedSuggestion]
+	}
+
+	// Create the input display with autocomplete
 	inputDisplay := cbv.input
-	if cbv.cursor < len(cbv.input) {
-		// Insert cursor character
-		inputDisplay = cbv.input[:cbv.cursor] + "█" + cbv.input[cbv.cursor:]
+	if cbv.isActive && bestSuggestion != "" && strings.HasPrefix(strings.ToLower(bestSuggestion), strings.ToLower(cbv.input)) && cbv.input != bestSuggestion {
+		// Show the typed part in dark text, suggestion continuation in lighter text (no gap)
+		typedPart := cbv.input
+		suggestionPart := bestSuggestion[len(cbv.input):]
+		// Add cursor at the current position (where next character will appear)
+		if cbv.cursor < len(cbv.input) {
+			// Insert cursor character at cursor position
+			typedPart = cbv.input[:cbv.cursor] + "█" + cbv.input[cbv.cursor:]
+		} else {
+			// Cursor at end - show cursor after the typed part
+			typedPart = cbv.input + "█"
+		}
+		// Style the suggestion part in lighter text, no padding
+		suggestionStyle := lipgloss.NewStyle().
+			Foreground(cbv.theme.TextSecondary).
+			Background(cbv.theme.BgPrimary)
+		inputDisplay = inputStyle.Render(typedPart) + suggestionStyle.Render(suggestionPart)
 	} else {
-		// Cursor at end
-		inputDisplay = cbv.input + "█"
+		// No suggestion or no match, just show input with cursor
+		if cbv.cursor < len(cbv.input) {
+			// Insert cursor character at cursor position
+			inputDisplay = cbv.input[:cbv.cursor] + "█" + cbv.input[cbv.cursor:]
+		} else {
+			// Cursor at end - show cursor after the input
+			inputDisplay = cbv.input + "█"
+		}
+		inputDisplay = inputStyle.Render(inputDisplay)
 	}
 
 	// Build the command bar content
-	content := promptStyle.Render(prompt) + " " + inputStyle.Render(inputDisplay)
+	content := promptStyle.Render(prompt) + " " + inputDisplay
 
-	// Add suggestions if available
-	if len(cbv.suggestions) > 0 {
-		suggestionsText := cbv.renderSuggestions()
-		content += "\n" + suggestionsText
-	}
-
-	return barStyle.Render(content)
+	return bordered.Render(barStyle.Render(content))
 }
 
 // renderSuggestions renders the suggestions list
